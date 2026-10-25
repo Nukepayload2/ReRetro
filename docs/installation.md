@@ -177,6 +177,8 @@ node scripts/verify.mjs --rom <rom-path> --live   # 追加「载入的是不是�
 |------|------|
 | `setup.mjs` 报 submodule 缺失 | `git submodule update --init --recursive`，再重跑 |
 | 构建 Mesen 失败 | 确认 VS 装了 C++ 桌面工作负载与 .NET 10 SDK；先单独打开 `Mesen.sln` 用 `Release|x64` 构建，看第一条真实错误 |
+| 重建 Mesen 报 `C1354: corrupt ipdb` 或 `LNK1257` | 上次链接被中断留下的增量代码生成库失效：删 `third_party/MesenGM/InteropDLL/obj/x64/Release/MesenCore.ipdb` 与 `.iobj` 后重试；`setup` 的 Mesen 目标会在构建前自动清掉这两个文件 |
+| 干净机器上 Mesen 一启动就退出 | 旧构建的 `Dependencies.zip` 可能不含原生库；重建一次 Mesen 会重新打包，判据是归档里出现 `libSkiaSharp.dll` 与 `libHarfBuzzSharp.dll` |
 | 构建 SourceGen 失败 | 确认装了 .NET Framework 4.8.1 targeting pack；报 `NETSDK1004` 是缺少 restore 资产，`setup.mjs` 已执行 `dotnet restore WorkBench.sln`，手工构建时也要先 restore |
 | 模拟器启动后立刻退出，stderr 是 `DllNotFoundException` | profile 目录缺原生库；`node scripts/rea-fc.mjs emulator provision` 复制，判据见 [emulator-init](emulator-init.md) |
 | 每次启动弹首次运行向导 | profile 目录没有 `settings.json`；`emulator provision` 写一份最小配置 |

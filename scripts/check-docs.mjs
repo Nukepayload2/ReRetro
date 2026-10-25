@@ -9,9 +9,10 @@ import { git } from './lib/process.mjs';
 const args = parseArgs(process.argv.slice(2));
 const json = args.flag('json');
 
-// Build outputs are not documents: `bin`/`obj` hold compiler state with absolute paths,
-// and the tool submodules plus generated directories are not ours to police.
-const SKIP_DIRS = new Set(['.git', 'third_party', 'out', 'node_modules', 'tmp', 'roms', 'bin', 'obj']);
+// Build outputs and editor state are not documents: `bin`/`obj`/`.vs` carry compiler and
+// IDE state with absolute paths, and the tool submodules plus generated directories are
+// not ours to police.
+const SKIP_DIRS = new Set(['.git', '.vs', 'third_party', 'out', 'node_modules', 'tmp', 'roms', 'bin', 'obj']);
 // Local task briefs live beside the kit but are not part of it.
 const SKIP_FILES = new Set(['goal.txt']);
 const TEXT_EXTENSIONS = new Set([

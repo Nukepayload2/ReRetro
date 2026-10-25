@@ -250,7 +250,8 @@ file_offset = 0x10 + prg_bank_index * prg_bank_size + (cpu_address - bank_cpu_st
 - [ ] 下游状态更新没有被提前 `RTS` 跳过。
 - [ ] 冷启动 10/10 命中，基础移动与 AI 路径回归通过。
 - [ ] 模拟器层通过：`emulator-setup` 与 `input-probe` 都 `ok`，且 `run_frames` 的 `frames_elapsed` 等于请求值。
-- [ ] 反汇编来自 `third_party/6502bench` 工程，且导出源码装配后与原 PRG 逐字节一致。
+- [ ] 反汇编来自 `third_party/6502bench` 工程，且导出源码装配后与原 PRG 逐字节一致。没有工程时这一项如实标为未满足，用调试桥的 `get_disassembly` 顶替不能勾选；交付里「未决」要写清哪些结论只靠线性反汇编。
+- [ ] 反汇编结论能指出指令的来源：工程导出，或 `get_disassembly` 的地址与 `line_count`；两条都拿不出时，写入者结论不成立。
 - [ ] PRG 断点/读写所用的地址口径已按 `third_party/MesenGM` 的地址映射实现确认，不依赖取样时刻的 bank 映射。
 - [ ] 金手指落在可切换区时带校验值，且已 dump 该偏移在各 bank 的原始字节确认唯一。
 - [ ] 已双读确认：CPU 视图为新值、PRG ROM 视图为原值。

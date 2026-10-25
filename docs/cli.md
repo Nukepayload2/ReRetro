@@ -116,6 +116,30 @@ node scripts/rea-fc.mjs cheat check --rom <rom> (--offset 0xNN | --address 0xNNN
 - `decode`/`encode` 使用 `third_party/MesenGM` 的 `CheatManager` 位序：6 位码是「地址 + 值」，8 位码是「地址 + 值 + 校验值」。
 - `check` 打印同一 bank 内偏移在每个 PRG bank 的原始字节，并给出目标 bank 的校验值是否唯一。唯一性不成立时不要交付 8 位码。
 
+## `sourcegen`
+
+```powershell
+node scripts/rea-fc.mjs sourcegen stats --rom <rom> --prg-bank <n> [--json]
+node scripts/rea-fc.mjs sourcegen build --rom <rom> --prg-bank <n> [--save-project <dis65>] [--json]
+node scripts/rea-fc.mjs sourcegen line  --rom <rom> --prg-bank <n> --address 0x8000 [--count 32] [--json]
+node scripts/rea-fc.mjs sourcegen xref  --rom <rom> --address 0x0324 [--all-banks] [--writes-only] [--json]
+```
+
+无人值守的反汇编入口。`scripts/sourcegen.mjs` 把 PRG bank 切成 16 KB 切片，交给 `tools/SourceGenCli`（引用 pin 的 `SourceGen`/`Asm65`/`CommonUtil` 工程的小工具），再把结果换回 CPU 地址与 ROM 文件偏移。分析本身来自 6502bench，驱动器只决定问什么、怎么打印。
+
+| 动作 | 输出 |
+|------|------|
+| `stats` | 每个 bank 的覆盖率：代码字节、指令数、未访问字节数、消息数 |
+| `build` | 同上，可 `--save-project` 写出 `.dis65`，界面能直接打开继续加工 |
+| `line` | 指定地址起的指令表：地址、原始字节、助记符、操作数 |
+| `xref` | 操作数命中所查地址的指令；`--writes-only` 只留写与读改写，`--all-banks` 扫全部 bank |
+
+- 非 iNES 输入用 `--data <file> --base 0x8000`，语义相同。
+- 固定 bank（通常最后一个，映射在 `$C000`）会自动读 `$FFFA-$FFFF` 的 NMI/Reset/IRQ 向量作为分析入口；可切换 bank 只有起始字节一个种子，覆盖率过低时用 `--entry` 补入口点。
+- CPU 默认 `2a03`（NES），可用 `--cpu 6502|65c02|65816`；`--no-undocumented` 排除未文档化指令。
+- 跨 bank 引用不在单 bank 分析范围内：`--all-banks` 是逐 bank 分析后合并，不是跨 bank 符号解析。
+- 驱动器缺失时本命令直接失败并给出 `node scripts/setup.mjs`；`setup` 把它作为第三个构建目标。
+
 ## `pins`
 
 ```powershell

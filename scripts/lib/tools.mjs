@@ -65,7 +65,28 @@ export function locateTools({ mesenDir, benchDir } = {}) {
   return {
     mesen: locateMesen(mesenDir),
     bench: locateBench(benchDir),
+    driver: locateDriver(),
   };
+}
+
+/**
+ * Locate the headless 6502bench driver.
+ *
+ * It is built from this repository against the pinned 6502bench projects, so it only
+ * exists after `setup.mjs` has run; `sourcegen.mjs` names the remedy when it is absent.
+ */
+function locateDriver() {
+  const candidates = [
+    { path: join(paths.root, 'tools', 'SourceGenCli', 'bin', 'Release', 'SourceGenCli.exe'), source: 'repo-build' },
+    { path: join(paths.out, 'SourceGenCli', 'SourceGenCli.exe'), source: 'out' },
+    { path: process.env.REA_FC_DRIVER ?? '', source: 'environment' },
+  ];
+  for (const candidate of candidates) {
+    if (candidate.path && existsSync(candidate.path)) {
+      return { exe: candidate.path, source: candidate.source };
+    }
+  }
+  return { exe: null, source: null };
 }
 
 function locateMesen(mesenDir) {
@@ -148,6 +169,18 @@ export function buildCommands(buildTools) {
       outputs: [join(paths.bench, 'SourceGen', 'bin', 'Release', 'SourceGen.exe')],
       requires: () => buildTools.msbuild !== null && buildTools.netFramework481 && buildTools.dotnet.available,
       missingRequirement: 'MSBuild with the .NET Framework 4.8.1 targeting pack and the .NET SDK are required to build SourceGen',
+    },
+    {
+      // Console driver over the pinned analysis: the only entry point an agent can call.
+      // It references SourceGen/Asm65/CommonUtil projects, so those build first.
+      name: 'SourceGenCli',
+      cwd: paths.root,
+      steps: [
+        { command: msbuild, args: [join('tools', 'SourceGenCli', 'SourceGenCli.csproj'), '/nologo', '/v:minimal', '/p:Configuration=Release', '/p:Platform=AnyCPU'] },
+      ],
+      outputs: [join(paths.root, 'tools', 'SourceGenCli', 'bin', 'Release', 'SourceGenCli.exe')],
+      requires: () => buildTools.msbuild !== null && buildTools.netFramework481,
+      missingRequirement: 'MSBuild with the .NET Framework 4.8.1 targeting pack is required to build the SourceGen driver',
     },
   ];
 }

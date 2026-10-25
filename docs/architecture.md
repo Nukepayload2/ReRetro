@@ -36,10 +36,12 @@ rea-fc/
     verify.mjs              门槛：submodule、桥、握手、模拟器层、实时探测
     diagnose.mjs            逐层诊断与下一步
     emulator.mjs            模拟器初始化：判定并补齐 profile、配置、原生库、手柄端口
+    sourcegen.mjs           反汇编驱动器前端：切 bank、换地址、按操作数查引用
     patch-rom.mjs           确定性补丁 + IPS 导出
     cheat-code.mjs          Game Genie 编解码与 bank 唯一性
     check-docs.mjs          仓库自检
     lib/                    纯函数库（rom、cheat、mcp、process、tools、cli、config、emulator）
+  tools/SourceGenCli/       无人值守反汇编驱动器（引用 third_party/6502bench 的工程）
   tests/                    node:test 单元与端到端测试
   third_party/
     pins.json               两个 submodule 的 pin（镜像 gitlink）

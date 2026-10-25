@@ -13,6 +13,10 @@
 node_modules/
 npm-debug.log*
 
+# .NET build output of the SourceGen driver.
+/tools/**/bin/
+/tools/**/obj/
+
 # Editors and OS.
 .idea/
 .vscode/

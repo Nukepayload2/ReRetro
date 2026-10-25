@@ -19,6 +19,7 @@ const COMMANDS = {
   patch: { script: 'patch-rom.mjs', summary: 'write a deterministic ROM patch and optional IPS file' },
   info: { script: 'patch-rom.mjs', summary: 'print the iNES header of a ROM', prefix: ['--info'] },
   cheat: { script: 'cheat-code.mjs', summary: 'encode, decode or bank-check a Game Genie code' },
+  sourcegen: { script: 'sourcegen.mjs', summary: 'build, list or cross-reference a PRG bank without the SourceGen GUI' },
   pins: { script: 'update-pins.mjs', summary: 'compare or record the submodule commits in third_party/pins.json' },
   check: { script: 'check-docs.mjs', summary: 'verify the repository has no machine-local paths or external workspace dependency' },
   test: { script: null, summary: 'run the test suite (node --test)' },

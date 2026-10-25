@@ -60,7 +60,8 @@ node scripts/setup.mjs
 3. 定位两个工具；submodule 里还没有构建产物时，用 `dotnet restore` + MSBuild 从源码构建：
    - `Mesen.sln`：`Release|x64`，产物 `third_party/MesenGM/bin/win-x64/Release/`（`Mesen.exe`、`MCPServer.exe`）；
    - `WorkBench.sln`：`Release|Any CPU`，产物 `third_party/6502bench/SourceGen/bin/Release/SourceGen.exe`。
-4. 把客户端注册条目写进 `out/`（该目录被 git 忽略）：定位到桥时写 `out/mcp.json`、`out/mcp.http.json`、`out/client-setup.md`；`out/environment.json` 每次都写，内含本次检测结果。
+4. 构建无人值守反汇编驱动器 `tools/SourceGenCli`（引用上面的 6502bench 工程，产物 `tools/SourceGenCli/bin/Release/SourceGenCli.exe`）。没有它，静态侧只剩界面操作与调试桥的窗口式反汇编。
+5. 把客户端注册条目写进 `out/`（该目录被 git 忽略）：定位到桥时写 `out/mcp.json`、`out/mcp.http.json`、`out/client-setup.md`；`out/environment.json` 每次都写，内含本次检测结果。
 
 常用参数：
 

@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -40,6 +41,29 @@ export function relativePath(absolutePath) {
   const normalized = absolutePath.replace(/\\/g, '/');
   const root = REPO_ROOT.replace(/\\/g, '/');
   return normalized.startsWith(root + '/') ? normalized.slice(root.length + 1) : normalized;
+}
+
+/**
+ * Path for reports that may live outside the repository.
+ *
+ * Inside the repository it stays repository-relative; a home-directory path is
+ * rendered against `%USERPROFILE%`, because a profile folder is machine state
+ * even when the file itself is not committed.
+ */
+export function displayPath(absolutePath) {
+  if (!absolutePath) {
+    return absolutePath;
+  }
+  const normalized = absolutePath.replace(/\\/g, '/');
+  const root = REPO_ROOT.replace(/\\/g, '/');
+  if (normalized.toLowerCase().startsWith(root.toLowerCase() + '/') || normalized.toLowerCase() === root.toLowerCase()) {
+    return normalized.slice(root.length + 1) || '.';
+  }
+  const home = homedir().replace(/\\/g, '/');
+  if (normalized.toLowerCase().startsWith(home.toLowerCase())) {
+    return '%USERPROFILE%' + normalized.slice(home.length);
+  }
+  return normalized;
 }
 
 /** Node version check used by setup and verify. */

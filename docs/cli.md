@@ -37,10 +37,12 @@ node scripts/rea-fc.mjs doctor [--live] [--rom <rom-path>] [--timeout <ms>] [--j
 | 运行时 | Node 版本、平台 | 升级 Node |
 | 仓库与 submodule | 两个工具仓是否检出、是否在 pin 上 | `git submodule update --init --recursive`，再跑 `pins` |
 | 工具二进制 | `MCPServer.exe`、`Mesen.exe`、`SourceGen.exe` 是否定位到 | `setup`，或 `--mesen-dir` 指向已有安装 |
+| 模拟器初始化 | profile 目录、`settings.json` 是否可解析、原生库是否齐全、手柄端口是否配置 | `emulator provision`，判据见 [emulator-init](emulator-init.md) |
 | 构建工具链 | MSBuild、dotnet、.NET Framework 4.8.1 pack | 安装对应 VS 工作负载与 SDK |
 | 工具列表缓存 | Mesen 写出的 `mcp-tools.cache.json` 是否存在 | 打开一次 Mesen 生成缓存 |
 | 桥握手 | `initialize` / `tools/list` 与工具面比对 | 重新构建或核对 pin |
 | 实时探测（`--live`） | `get_rom_info`、`debugger_status`、一次内存读 | 打开 Mesen、载入 ROM，或加 `--rom` |
+| 输入端口（`--live`） | `clear_input` 返回的 `available_controllers` | 端口为 `None` 时用 `emulator provision` 配置 |
 
 退出码：`0` 各层通过，`2` 仓库正常但缺环境（Mesen 没开、缓存没生成），`1` 有需要人处理的问题。`--json` 输出每一层的 `status`、`detail`、`remedy` 与汇总的 `nextActions`。
 
@@ -58,8 +60,27 @@ node scripts/rea-fc.mjs verify [--live] [--rom <rom-path>] [--load] [--timeout <
 
 `--live` 追加一次实时探测：`get_rom_info`、`debugger_status`，在已载入 ROM 且有内存区时再做一次 `get_memory_range` 实际读取。`--rom` 把 `get_rom_info.rom_path` 与给定路径规范化比较；加 `--load` 时，若本次工具面带 `load_rom`，先让它载入再比对，否则按界面载入处理。
 
-## `info`
+## `emulator`
 
+```powershell
+node scripts/rea-fc.mjs emulator inspect [--mesen-dir <dir>] [--rom <rom>] [--live] [--json]
+node scripts/rea-fc.mjs emulator provision [--mesen-dir <dir>] [--rom <rom>] [--no-portable] `
+  [--device NesController] [--json]
+```
+
+判定并补齐模拟器侧的初始化事实：profile 目录、`settings.json`、原生库（`MesenCore`、`libSkiaSharp`、`libHarfBuzzSharp`）、手柄端口。规则与判据见 [emulator-init](emulator-init.md)。
+
+| 动作 | 行为 | 退出码 |
+|------|------|--------|
+| `inspect` | 只读：给出 profile 目录与判定依据、配置文件是否可解析、原生库是否齐全、端口设备、启动命令 | `0` 全通过，`2` 有缺项，`1` 连 `Mesen.exe` 都没定位到 |
+| `provision` | 写 `settings.json`（保留其余配置项，只补 `None`/缺失的端口），默认把可执行文件目录设为便携 profile；文档目录 profile 下按需复制原生库 | `0` 成功，`1` 失败 |
+
+- `--live` 用桥的 `clear_input` 复核 `available_controllers`：这是「按键真能送进去」的直接证据，`inspect` 的静态判定不能替代它。
+- `--rom` 让输出的启动命令带上 ROM 路径；只影响打印，不启动模拟器。
+- `--no-portable` 改为写入 `%USERPROFILE%\Documents\MesenCE` 下的文档目录 profile。
+- 不写 ROM、不写存档、不改 submodule 的跟踪文件；写入目标是可执行文件所在目录与 profile 目录。
+
+## `info`
 ```powershell
 node scripts/rea-fc.mjs info <rom> [--json]
 ```

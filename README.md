@@ -13,23 +13,25 @@ node scripts/setup.mjs      # 检测构建先决、构建工具、写出 MCP 注
 node scripts/verify.mjs     # 证明调试桥与工具面可用
 ```
 
-把 `out/client-setup.md` 里的条目加进 MCP 客户端，打开一次 Mesen（桥的工具清单由 Mesen 启动时写成缓存），载入目标 ROM，再跑一次：
+把 `out/client-setup.md` 里的条目加进 MCP 客户端，再让模拟器本身可启动、可按键（写 profile 配置、补原生库、配置手柄端口）：
 
 ```powershell
-node scripts/verify.mjs --live --rom <rom-path>
+node scripts/rea-fc.mjs emulator provision --rom <rom>
+node scripts/verify.mjs --live --rom <rom>
 ```
 
-之后按 [docs/workflow.md](docs/workflow.md) 干活。环境没跑起来时先跑 `node scripts/rea-fc.mjs doctor`：它按「运行时 → submodule → 二进制 → 工具链 → 工具列表缓存 → 握手 → 实时探测」逐层给出断点与下一步。
+`verify` 通过只证明桥与工具面可达，不证明模拟器能启动或收得到按键：这两件事由 profile 目录、配置文件、原生库与手柄端口决定，判据见 [docs/emulator-init.md](docs/emulator-init.md)。之后按 [docs/workflow.md](docs/workflow.md) 干活。环境没跑起来时先跑 `node scripts/rea-fc.mjs doctor`：它按「运行时 → submodule → 二进制 → 模拟器初始化 → 工具链 → 工具列表缓存 → 握手 → 实时探测 → 输入端口」逐层给出断点与下一步。
 
 ## 包含什么
 
 | 部分 | 内容 |
 |------|------|
 | 规则 | [docs/workflow.md](docs/workflow.md)：适用边界、核心原则、静态定位、动态取证、补丁形态、金手指形态、冷启动验收、交付模板、禁止项、症状诊断 |
+| 初始化 | [docs/emulator-init.md](docs/emulator-init.md)：桥已应答但模拟器起不来、载不进 ROM 或收不到按键时的判据与补齐步骤 |
 | 工具 | `third_party/MesenGM`（模拟器 + MCP 调试桥，23 个工具，含载入 ROM / 存档读档 / 输入 / 推帧）、`third_party/6502bench`（SourceGen 反汇编），pin 见 [docs/third-party.md](docs/third-party.md) |
-| 命令 | `setup`、`doctor`、`verify`、`info`、`patch`、`cheat`、`pins`、`check`、`test`，见 [docs/cli.md](docs/cli.md) |
+| 命令 | `setup`、`doctor`、`verify`、`emulator`、`info`、`patch`、`cheat`、`pins`、`check`、`test`，见 [docs/cli.md](docs/cli.md) |
 | 智能体 | [.agents/skills/nes-rom-reversing/SKILL.md](.agents/skills/nes-rom-reversing/SKILL.md) |
-| 测试 | `node --test tests/`：iNES 解析、偏移换算、Game Genie 编解码往返、补丁确定性、IPS 往返、桥握手 |
+| 测试 | `node --test tests/`：iNES 解析、偏移换算、Game Genie 编解码往返、补丁确定性、IPS 往返、模拟器初始化判定、桥握手 |
 
 ## 要求
 - Windows 10/11 x64（Mesen 的 MCP 桥只随 Windows 构建提供；SourceGen 是 WPF 程序）。

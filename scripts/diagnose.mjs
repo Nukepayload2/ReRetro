@@ -1,8 +1,15 @@
 #!/usr/bin/env node
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { homedir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { heading, parseArgs, rows, status } from './lib/cli.mjs';
-import { checkNodeVersion, paths, readPins, relativePath } from './lib/config.mjs';
+import { checkNodeVersion, displayPath, paths, readPins, relativePath } from './lib/config.mjs';
+import {
+  describeInputPorts,
+  inspectNativeDependencies,
+  readSettings,
+  resolveHomeFolder,
+} from './lib/emulator.mjs';
 import { callBridgeTools, compareTools, readToolSurface, resultText } from './lib/mcp.mjs';
 import { detectBuildTools, locateTools, submoduleState } from './lib/tools.mjs';
 
@@ -12,8 +19,12 @@ import { detectBuildTools, locateTools, submoduleState } from './lib/tools.mjs';
  * `verify.mjs` answers one question: is the kit ready? This command answers the
  * follow-up — if it is not, where does it break and what should be done next?
  * It walks the same layers in order (runtime, repository, toolchain, binaries,
- * tool-list cache, handshake, optional live probe) and stops giving advice at
- * the first layer that needs a human action.
+ * emulator profile, tool-list cache, handshake, optional live probe) and stops
+ * giving advice at the first layer that needs a human action.
+ *
+ * The emulator layer exists because a green handshake is answered by the bridge
+ * alone: it stays green while the emulator itself cannot start, and while its
+ * controller ports are unconfigured and reject every `set_input`.
  */
 
 const args = parseArgs(process.argv.slice(2));
@@ -28,11 +39,15 @@ step('runtime', '运行时', checkRuntime);
 step('repository', '仓库与 submodule', checkRepository);
 const tools = locateTools({ mesenDir: args.get('mesen-dir'), benchDir: args.get('bench-dir') });
 step('binaries', '工具二进制', () => checkBinaries(tools));
+step('emulator', '模拟器初始化', () => checkEmulator(tools));
 step('toolchain', '构建工具链', checkToolchain);
 step('tool-cache', 'Mesen 工具列表缓存', checkToolCache);
 const surface = step('handshake', '桥握手', () => checkHandshake(tools));
 if (surface?.data?.ok && (live || rom)) {
-  step('live', '实时探测', () => checkLive(tools, surface.data.tools));
+  const liveStep = step('live', '实时探测', () => checkLive(tools, surface.data.tools));
+  if (liveStep?.data?.input) {
+    step('input', '输入端口（实时）', () => checkInput(liveStep.data.input));
+  }
 }
 
 finish();
@@ -110,6 +125,53 @@ function checkBinaries(located) {
       (missing.length === 0 ? '' : `；缺少 ${missing.join(' / ')}`),
     remedy: missing.length === 0 ? null : 'node scripts/setup.mjs 补齐缺失的工具；只缺 SourceGen 时静态侧不可用',
     data: located,
+  };
+}
+
+function checkEmulator(located) {
+  const emulator = located.mesen.emulator;
+  if (!emulator) {
+    return {
+      status: 'warn',
+      detail: 'Mesen.exe 未定位到：桥能应答，但没有模拟器可启动',
+      remedy: 'node scripts/setup.mjs（或 --mesen-dir / REA_FC_MESEN_DIR 指向已有安装）',
+      data: null,
+    };
+  }
+
+  const exeDir = dirname(emulator);
+  const home = resolveHomeFolder({ exeDir, documentsDir: join(homedir(), 'Documents') });
+  const settings = readSettings(home.path);
+  const native = inspectNativeDependencies(home.path);
+  const ports = describeInputPorts(settings.data ?? {});
+
+  const problems = [];
+  if (!settings.exists) {
+    problems.push('没有 settings.json，首次启动会先进配置向导');
+  } else if (settings.parseError) {
+    problems.push(`settings.json 解析失败：${settings.parseError}`);
+  }
+  if (!native.complete) {
+    problems.push(`缺原生库 ${native.missing.join(', ')}，模拟器会在启动阶段直接退出`);
+  }
+  if (!ports.ready) {
+    problems.push(`手柄端口未配置（${ports.ports.filter(port => !port.configured).map(port => port.port).join(', ')}），set_input 会被拒绝`);
+  }
+
+  return {
+    status: problems.length === 0 ? 'ok' : 'warn',
+    detail: problems.length === 0
+      ? `profile ${displayPath(home.path)}（${home.portable ? '便携' : '文档目录'}），原生库齐全，${ports.ports.map(port => `${port.port}=${port.device}`).join('，')}`
+      : `${problems.join('；')}`,
+    remedy: problems.length === 0 ? null : 'node scripts/rea-fc.mjs emulator provision，然后重启 Mesen 再重跑',
+    data: {
+      exeDir: displayPath(exeDir),
+      homeFolder: displayPath(home.path),
+      portable: home.portable,
+      settings: { exists: settings.exists, bytes: settings.bytes ?? 0, parseError: settings.parseError },
+      native,
+      ports,
+    },
   };
 }
 
@@ -200,20 +262,30 @@ function checkLive(located, toolList) {
   }
   calls.push({ name: 'get_rom_info', arguments: {} });
   calls.push({ name: 'debugger_status', arguments: {} });
+  // Asking the bridge to release controller 0 is a no-op for game state and
+  // returns the controller list, which is the only proof that input can be sent.
+  calls.push({ name: 'clear_input', arguments: { controller: 0 } });
 
   try {
     const result = callBridgeTools({ command: bridge, calls, timeoutMs: Math.max(timeoutMs, 60_000) });
     const romInfo = parseJson(result.results.find(entry => entry.name === 'get_rom_info')?.result);
     const loaded = romInfo && romInfo.format && romInfo.format !== 'Unknown';
-    const failures = result.results.filter(entry => !entry.ok);
-    const mesenDown = failures.some(entry => /Mesen is not running/i.test(JSON.stringify(entry.error ?? {})));
+    const inputResult = result.results.find(entry => entry.name === 'clear_input');
+    const inputPayload = parseJson(inputResult?.result);
+    const input = {
+      ok: Boolean(inputResult?.ok),
+      available: Array.isArray(inputPayload?.available_controllers) ? inputPayload.available_controllers : [],
+      error: inputResult?.ok ? null : JSON.stringify(inputResult?.error ?? {}).slice(0, 200),
+    };
+    const failures = result.results.filter(entry => !entry.ok && entry.name !== 'clear_input');
+    const mesenDown = result.results.some(entry => /Mesen is not running/i.test(JSON.stringify(entry.error ?? {})));
 
     if (mesenDown) {
       return {
         status: 'warn',
         detail: 'Mesen 没有运行',
-        remedy: '打开 Mesen、载入目标 ROM，然后用 --live --rom <rom> 重跑',
-        data: { loaded: false, results: result.results },
+        remedy: '按 docs/emulator-init.md 启动 Mesen 并载入目标 ROM，然后用 --live --rom <rom> 重跑',
+        data: { loaded: false, results: result.results, input },
       };
     }
 
@@ -223,7 +295,7 @@ function checkLive(located, toolList) {
         ? `ROM ${romInfo.rom_path}（${romInfo.format}），${result.results.length} 个调用均成功`
         : 'Mesen 在运行但没有载入 ROM',
       remedy: loaded ? null : '在 Mesen 里载入目标 ROM，或加 --rom <rom> 让 load_rom 载入',
-      data: { loaded, rom: romInfo, results: result.results },
+      data: { loaded, rom: romInfo, results: result.results, input },
     };
   } catch (error) {
     return {
@@ -233,6 +305,18 @@ function checkLive(located, toolList) {
       data: null,
     };
   }
+}
+
+function checkInput(input) {
+  const available = Array.isArray(input.available) ? input.available : [];
+  return {
+    status: available.length > 0 ? 'ok' : 'warn',
+    detail: available.length > 0
+      ? `available_controllers ${JSON.stringify(available)}`
+      : `available_controllers 为空${input.error ? `（${input.error}）` : ''}：桥会拒绝 set_input`,
+    remedy: available.length > 0 ? null : 'node scripts/rea-fc.mjs emulator provision 配置 Nes.Port1，重启 Mesen 后重跑',
+    data: input,
+  };
 }
 
 function parseJson(result) {
@@ -278,6 +362,7 @@ function finish() {
     ['Node', process.versions.node],
     ['仓库', relativePath(paths.root)],
     ['桥', tools.mesen.bridge ? relativePath(tools.mesen.bridge) : '缺失'],
+    ['模拟器', tools.mesen.emulator ? relativePath(tools.mesen.emulator) : '缺失'],
     ['SourceGen', tools.bench.exe ? relativePath(tools.bench.exe) : '缺失'],
   ]);
 

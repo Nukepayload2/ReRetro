@@ -53,9 +53,12 @@
 
 1. `node scripts/setup.mjs` 检查构建先决、构建 MesenGM 与 6502bench，并写出客户端注册条目到 `out/`。
 2. 把 `out/client-setup.md` 里的条目加进 MCP 客户端。
-3. `node scripts/verify.mjs` 证明工具面存在：桥应答 `initialize` 与 `tools/list`，`get_rom_info` 返回目标 ROM。
+3. `node scripts/rea-fc.mjs emulator provision --rom <rom>` 让模拟器可启动、手柄端口可用；判定细节见 [emulator-init](emulator-init.md)。
+4. `node scripts/verify.mjs` 证明工具面存在：桥应答 `initialize` 与 `tools/list`，模拟器层与输入端口通过，`get_rom_info` 返回目标 ROM。
 
 注册成功不等于已生效，只有 `get_rom_info` 给出目标 ROM 才算接入完成。此步失败时不进入动态取证，按缺失处理，结论上限为「推测」。
+
+桥的握手只覆盖桥：它能应答、乃至报出完整工具面，而模拟器本身可能起不来、载不进 ROM 或收不到按键。这三件事分别由 profile 目录、`settings.json` 与手柄端口决定，判据与补齐步骤见 [emulator-init](emulator-init.md)。先用 `node scripts/rea-fc.mjs doctor --live` 看模拟器层与输入端口层是否通过，再开始取证。
 
 静态侧同样是门槛：先确认 `third_party/6502bench` 能打开目标 ROM、能导出汇编、能做字节环回，再开始解释机器码。参考工程不可用时，不要手写反汇编器、解析器或内存扫描器去顶替它。
 
@@ -243,6 +246,7 @@ file_offset = 0x10 + prg_bank_index * prg_bank_size + (cpu_address - bank_cpu_st
 - [ ] 写入宽度正确，不存在零页回绕或高低字节错位。
 - [ ] 下游状态更新没有被提前 `RTS` 跳过。
 - [ ] 冷启动 10/10 命中，基础移动与 AI 路径回归通过。
+- [ ] 模拟器层通过：`emulator-setup` 与 `input-probe` 都 `ok`，且 `run_frames` 的 `frames_elapsed` 等于请求值。
 - [ ] 反汇编来自 `third_party/6502bench` 工程，且导出源码装配后与原 PRG 逐字节一致。
 - [ ] PRG 断点/读写所用的地址口径已按 `third_party/MesenGM` 的地址映射实现确认，不依赖取样时刻的 bank 映射。
 - [ ] 金手指落在可切换区时带校验值，且已 dump 该偏移在各 bank 的原始字节确认唯一。
@@ -255,6 +259,10 @@ file_offset = 0x10 + prg_bank_index * prg_bank_size + (cpu_address - bank_cpu_st
 
 | 症状 | 优先怀疑 | 检查动作 |
 |------|---------|---------|
+| 桥握手绿但一条命令都取不到证据 | 模拟器层或输入端口层没过 | `node scripts/rea-fc.mjs doctor --live`；按 [emulator-init](emulator-init.md) 补齐 |
+| 模拟器启动后立刻退出 | profile 目录缺原生库 | 看 stderr 的 `DllNotFoundException` 路径；`node scripts/rea-fc.mjs emulator provision` |
+| `set_input` 报「Controller 0 is not available」 | 手柄端口是 `None` | `emulator provision` 后重启模拟器；再用 `clear_input` 的 `available_controllers` 复核 |
+| 按键送进去了但画面不动 | `run_frames` 返回 `timed_out` 且 `frames_elapsed` 为 `0`，按键被随后的释放吞掉 | 原样重试同一次推帧，拿到帧数后再释放按键 |
 | 实体/弹道在冷启动后不动 | 全局表或读取覆盖改到了初始化/状态变量 | 移除实验性 cheats；冷启动先测不带效果的移动；改用窄路径钩子 |
 | 画面有效但状态异常 | 只改了显示值或一次性值 | 在写入点看持久状态和下游处理器；检查是否被后续逻辑复位 |
 | 效果不出现 | 走了另一张表或另一条分支 | 在写入点记录实际 `PC` 和值；检查玩家/CPU 守卫与分支路径 |
@@ -286,6 +294,7 @@ file_offset = 0x10 + prg_bank_index * prg_bank_size + (cpu_address - bank_cpu_st
 - 不用"观察到的状态跳变"替代写入者取证。
 - 不在补丁开启时把异常归因于游戏或存档，先跑对照组。
 - 不在调试桥未生效时用自制脚本、外部内存工具代替取证。
+- 不把桥的握手通过当成模拟器可用：模拟器层与输入端口层没过时，结论停在「推测」。
 - 不在反汇编参考工程未就绪时手写反汇编器或解析器。
 - 不隐藏失败路径或未验证项。
 

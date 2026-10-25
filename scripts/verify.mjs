@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { homedir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 import { heading, parseArgs, rows, status } from './lib/cli.mjs';
-import { checkNodeVersion, paths, readPins, relativePath } from './lib/config.mjs';
+import { checkNodeVersion, displayPath, paths, readPins, relativePath } from './lib/config.mjs';
+import { describeInputPorts, inspectNativeDependencies, readSettings, resolveHomeFolder } from './lib/emulator.mjs';
 import { callBridgeTools, compareTools, readToolSurface, resultText } from './lib/mcp.mjs';
 import { locateTools, submoduleState } from './lib/tools.mjs';
 
@@ -17,6 +19,7 @@ const report = {
   submodules: null,
   tools: null,
   handshake: null,
+  emulator: null,
   live: null,
   gates: [],
   exitCode: 0,
@@ -28,6 +31,7 @@ function main() {
   report.submodules = gateSubmodules();
   report.tools = locateTools({ mesenDir: args.get('mesen-dir'), benchDir: args.get('bench-dir') });
   report.handshake = gateBridge();
+  report.emulator = gateEmulator();
   if (live || rom) {
     report.live = probeLive();
   }
@@ -96,6 +100,56 @@ function gateBridge() {
   }
 }
 
+/**
+ * Prove the emulator itself can start and accept input.
+ *
+ * The handshake gate is answered by the bridge alone, so it stays green while
+ * the emulator is unstartable or has no controller port. This gate reads the
+ * facts that decide those two questions, and is a pass when a live probe
+ * already saw controllers, because then the emulator is demonstrably running.
+ */
+function gateEmulator() {
+  const emulator = report.tools.mesen.emulator;
+  if (!emulator) {
+    pushGate('emulator-setup', 'fail', 'Mesen.exe not found; run node scripts/setup.mjs');
+    return { ok: false, reason: 'emulator missing' };
+  }
+
+  const exeDir = dirname(emulator);
+  const home = resolveHomeFolder({ exeDir, documentsDir: join(homedir(), 'Documents') });
+  const settings = readSettings(home.path);
+  const native = inspectNativeDependencies(home.path);
+  const ports = describeInputPorts(settings.data ?? {});
+
+  const problems = [];
+  if (!settings.exists) {
+    problems.push('no settings.json: the first run enters the configuration wizard');
+  } else if (settings.parseError) {
+    problems.push(`settings.json does not parse (${settings.parseError})`);
+  }
+  if (!native.complete) {
+    problems.push(`missing native libraries ${native.missing.join(', ')}`);
+  }
+  if (!ports.ready) {
+    problems.push(`controller ports unconfigured (${ports.ports.filter(port => !port.configured).map(port => port.port).join(', ')})`);
+  }
+
+  pushGate('emulator-setup', problems.length === 0 ? 'pass' : 'warn', problems.length === 0
+    ? `profile ${displayPath(home.path)} (${home.portable ? 'portable' : 'documents'}), native libraries complete, ${ports.ports.map(port => `${port.port}=${port.device}`).join(', ')}`
+    : `${problems.join('; ')} — run node scripts/rea-fc.mjs emulator provision`);
+
+  return {
+    ok: problems.length === 0,
+    emulator: relativePath(emulator),
+    homeFolder: displayPath(home.path),
+    portable: home.portable,
+    settings: { exists: settings.exists, bytes: settings.bytes ?? 0, parseError: settings.parseError },
+    native,
+    ports,
+    problems,
+  };
+}
+
 function probeLive() {
   const bridge = report.tools.mesen.bridge;
   if (!bridge) {
@@ -114,6 +168,9 @@ function probeLive() {
     }
     calls.push({ name: 'get_rom_info', arguments: {} });
     calls.push({ name: 'debugger_status', arguments: {} });
+    // Releasing controller 0 changes no game state and returns the controller
+    // list: the only direct proof that the bridge can send input at all.
+    calls.push({ name: 'clear_input', arguments: { controller: 0 } });
     first = callBridgeTools({
       command: bridge,
       calls,
@@ -137,12 +194,14 @@ function probeLive() {
     ? normalizePath(romInfo?.rom_path ?? '') === normalizePath(expectedRom)
     : null;
 
-  const calls = first.results.map(entry => ({
-    name: entry.name,
-    ok: entry.ok,
-    error: entry.error,
-    text: entry.result ? resultText(entry.result).slice(0, 4_000) : null,
-  }));
+  const calls = first.results
+    .filter(entry => entry.name !== 'clear_input')
+    .map(entry => ({
+      name: entry.name,
+      ok: entry.ok,
+      error: entry.error,
+      text: entry.result ? resultText(entry.result).slice(0, 4_000) : null,
+    }));
 
   if (rom && args.flag('load') && !first.tools.some(tool => tool.name === 'load_rom')) {
     calls.push({
@@ -183,11 +242,18 @@ function probeLive() {
       : 'Mesen answered ROM, debugger and memory probes';
   pushGate('live-probe', ok ? 'pass' : 'warn', detail);
 
+  const inputResult = first.results.find(entry => entry.name === 'clear_input');
+  const controllers = parseJson(inputResult?.result)?.available_controllers ?? [];
+  pushGate('input-probe', controllers.length > 0 ? 'pass' : 'warn', controllers.length > 0
+    ? `available_controllers ${JSON.stringify(controllers)}`
+    : 'no controller port is configured; set_input will be rejected — run node scripts/rea-fc.mjs emulator provision');
+
   return {
     ok,
     server: first.server,
     rom: romInfo ? { path: romInfo.rom_path, format: romInfo.format, console: romInfo.console_type_name, memoryTypes } : null,
     romMatches,
+    controllers,
     calls,
   };
 }

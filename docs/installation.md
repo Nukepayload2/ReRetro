@@ -85,7 +85,20 @@ node scripts/setup.mjs
 
 两种方式都由 `MCPServer.exe` 翻译到同一条命名管道，客户端看到的工具面相同。
 
-## 第三步：在客户端注册
+## 第三步：让模拟器本身可启动、可按键
+
+桥的握手只证明桥在应答，它不启动模拟器。模拟器侧还有四项事实：profile 目录、`settings.json`、原生库、手柄端口。四项里任意一项不成立，桥依旧全绿，而动态取证一步也走不了——此时读 [emulator-init](emulator-init.md)，按其中的步骤判定与补齐。
+
+最短的一次性补齐：
+
+```powershell
+node scripts/rea-fc.mjs emulator provision --rom <rom>   # 写配置、补端口、按需复制原生库
+node scripts/rea-fc.mjs emulator inspect --live          # 复核：原生库齐全、available_controllers 非空
+```
+
+不写配置只做判定时用 `inspect`；它按 `0 / 2 / 1` 区分「全通过 / 有缺项 / 连可执行文件都没有」。
+
+## 第四步：在客户端注册
 
 `out/client-setup.md` 里有按客户端分开的注册命令；`out/mcp.json` 是通用的 `mcpServers` 形态。以通用 JSON 为例：
 
@@ -106,18 +119,19 @@ node scripts/setup.mjs
 - 可执行文件位置以实际安装为准；submodule 的构建产物在 `third_party/MesenGM/bin/win-x64/Release/MCPServer.exe`，但它不一定是用户正在跑的模拟器那份。
 - 改动 JSON 后先做一次解析校验（例如把文件读成 JSON 对象），语法错会让整份配置失效，表现为所有 MCP server 一起消失。
 
-## 第四步：核验生效
+## 第五步：核验生效
 
 注册成功不等于已生效。核验顺序有一个前提：桥的工具清单由 Mesen 在启动时写进本机缓存，桥在没有 Mesen 的情况下靠这份缓存离线应答 `tools/list`。因此**第一次**核验的顺序是：
 
-1. 打开 Mesen（可以只到主界面），让缓存生成；
-2. `node scripts/verify.mjs`。
+1. 让模拟器可启动、可按键（第三步）；
+2. 打开 Mesen（可以只到主界面），让缓存生成；
+3. `node scripts/verify.mjs`。
 
 之后只要缓存还在，桥就能在 Mesen 未运行时回答工具列表。
 
 ```powershell
-node scripts/verify.mjs          # submodule pin + 桥 + 工具面
-node scripts/verify.mjs --live   # 追加 Mesen 实时探测
+node scripts/verify.mjs          # submodule pin + 桥 + 工具面 + 模拟器层
+node scripts/verify.mjs --live   # 追加 Mesen 实时探测与输入端口探测
 node scripts/verify.mjs --rom <rom-path> --live   # 追加「载入的是不是这个 ROM」
 ```
 
@@ -126,10 +140,12 @@ node scripts/verify.mjs --rom <rom-path> --live   # 追加「载入的是不是�
 | 检查项 | 期望结果 | 不满足说明 |
 |--------|---------|-----------|
 | 工具列表 | `debugger_status`、`get_rom_info`、`load_rom`、`close_rom`、`get_cpu_state`、`get_ppu_state`、`get_screen`、`get_memory_range`、`search_memory`、`set_memory`、`get_disassembly`、`get_trace_tail`、`get_debug_events`、`set_breakpoints`、`step`、`resume`、`pause`、`run_frames`、`set_input`、`clear_input`、`save_rom`、`save_state`、`load_state`，共 23 个 | 报「Mesen is not running」是缓存还没生成：先打开一次 Mesen；其余情况检查客户端是否加载了新配置 |
+| 模拟器层 `emulator-setup` | profile 目录已判定、`settings.json` 可解析、原生库齐全、手柄端口已配置 | 握手绿而模拟器层降级，就是「桥能应答、取证做不了」；按 [emulator-init](emulator-init.md) 补齐 |
 | `get_rom_info` | `rom_path` 是目标 ROM，`format` 不是 `Unknown` | 桥通了但没载入 ROM，或载入了别的 ROM |
 | `get_rom_info` 的 `memory_types` | 含 `NesPrgRom`、`NesInternalRam` 等区域及其 ID 与大小 | 不要凭记忆填内存区 ID，一律取自本次返回 |
 | `debugger_status` | `debugger_running`、`emulation_running`、`execution_stopped` 可解释 | 握手成功不代表 ROM 在跑 |
 | 一次实际内存读 | `get_memory_range` 能读到已知字节 | 只有状态接口通、内存接口不通时，不能作为取证依据 |
+| 输入端口 `input-probe` | `clear_input` 返回的 `available_controllers` 非空 | 为空说明端口没配，`set_input` 会被拒绝；按键送不进去等于没有动态证据 |
 
 `--rom` 默认只做比对：它把 `get_rom_info.rom_path` 与给定路径规范化后比较，不改变模拟器状态。加 `--load` 时先调 `load_rom` 载入再比对；本地构建缺该工具时按界面载入处理并在输出里说明。
 
@@ -153,6 +169,10 @@ node scripts/verify.mjs --rom <rom-path> --live   # 追加「载入的是不是�
 | `setup.mjs` 报 submodule 缺失 | `git submodule update --init --recursive`，再重跑 |
 | 构建 Mesen 失败 | 确认 VS 装了 C++ 桌面工作负载与 .NET 10 SDK；先单独打开 `Mesen.sln` 用 `Release|x64` 构建，看第一条真实错误 |
 | 构建 SourceGen 失败 | 确认装了 .NET Framework 4.8.1 targeting pack；报 `NETSDK1004` 是缺少 restore 资产，`setup.mjs` 已执行 `dotnet restore WorkBench.sln`，手工构建时也要先 restore |
+| 模拟器启动后立刻退出，stderr 是 `DllNotFoundException` | profile 目录缺原生库；`node scripts/rea-fc.mjs emulator provision` 复制，判据见 [emulator-init](emulator-init.md) |
+| 每次启动弹首次运行向导 | profile 目录没有 `settings.json`；`emulator provision` 写一份最小配置 |
+| `set_input` 报「Controller 0 is not available」 | 手柄端口是 `None`；`emulator provision` 写入 `NesController` 后重启模拟器 |
+| `run_frames` 返回 `timed_out` 且 `frames_elapsed` 为 `0` | 服务端预算内没恢复运行；原样重试同一次推帧，不要先释放按键 |
 | `tools/list` 报 Mesen is not running | 打开一次 Mesen 生成工具缓存，再重跑核验；不需要重建桥 |
 | 工具调用报 Mesen 未运行 | 打开 Mesen 并载入 ROM；桥不用重启 |
 | 工具调用超时 | Mesen 停在自己的调试器或弹了模态窗口；先恢复执行、关对话框。服务端超时上限查 `third_party/MesenGM` |

@@ -22,6 +22,7 @@ rea-fc/
   docs/
     workflow.md             工作流全文（规则）
     installation.md         构建、注册、核验
+    emulator-init.md        模拟器初始化：profile、配置文件、原生库、手柄端口
     cli.md                  命令与退出码
     third-party.md          submodule pin、许可、更新策略
     architecture.md         本文件
@@ -32,11 +33,13 @@ rea-fc/
   scripts/
     rea-fc.mjs              子命令入口
     setup.mjs               构建 / 定位 / 写客户端配置
-    verify.mjs              门槛：submodule、桥、握手、实时探测
+    verify.mjs              门槛：submodule、桥、握手、模拟器层、实时探测
+    diagnose.mjs            逐层诊断与下一步
+    emulator.mjs            模拟器初始化：判定并补齐 profile、配置、原生库、手柄端口
     patch-rom.mjs           确定性补丁 + IPS 导出
     cheat-code.mjs          Game Genie 编解码与 bank 唯一性
     check-docs.mjs          仓库自检
-    lib/                    纯函数库（rom、cheat、mcp、process、tools、cli、config）
+    lib/                    纯函数库（rom、cheat、mcp、process、tools、cli、config、emulator）
   tests/                    node:test 单元与端到端测试
   third_party/
     pins.json               两个 submodule 的 pin（镜像 gitlink）

@@ -26,11 +26,14 @@ metadata:
 
 ```powershell
 node scripts/verify.mjs
+node scripts/rea-fc.mjs doctor --live --rom <rom>
 ```
 
 - 只有 `bridge-handshake` 通过，才允许做动态取证；通过只证明工具面可达，不证明目标 ROM 已载入。
+- 握手不覆盖模拟器：模拟器层（profile 目录、`settings.json`、原生库、手柄端口）与 `input-probe` 也要过。哪一层没过按 `docs/emulator-init.md` 补齐，`node scripts/rea-fc.mjs emulator provision` 一次写配置、补端口、复制原生库。
 - 工具清单要 Mesen 至少启动一次才有缓存；报「Mesen is not running」时先打开 Mesen，再重跑核验。
 - 要证明「载入的是目标 ROM」，用 `node scripts/verify.mjs --live --rom <rom>`；`--rom` 只比对 `rom_path`。
+- `run_frames` 报 `timed_out` 且 `frames_elapsed` 为 `0` 时原样重试，不要先释放按键：按键会被释放吞掉，表现成游戏不响应输入。
 - 门没过时不进入 ROM 分析，也不要用自制脚本顶替缺失的工具。结论上限：推测。
 
 ## 1. 固定基线

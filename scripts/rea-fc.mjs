@@ -15,6 +15,7 @@ const COMMANDS = {
   setup: { script: 'setup.mjs', summary: 'detect build tools, build the tools, write MCP client config' },
   doctor: { script: 'diagnose.mjs', summary: 'walk the bridge layers and name the next action' },
   verify: { script: 'verify.mjs', summary: 'prove the bridge and tool surface, optionally probe a live Mesen' },
+  emulator: { script: 'emulator.mjs', summary: 'inspect or provision the emulator profile, native libraries and controller ports' },
   patch: { script: 'patch-rom.mjs', summary: 'write a deterministic ROM patch and optional IPS file' },
   info: { script: 'patch-rom.mjs', summary: 'print the iNES header of a ROM', prefix: ['--info'] },
   cheat: { script: 'cheat-code.mjs', summary: 'encode, decode or bank-check a Game Genie code' },
@@ -73,6 +74,8 @@ commands:`);
 examples:
   node scripts/rea-fc.mjs setup
   node scripts/rea-fc.mjs verify --live
+  node scripts/rea-fc.mjs emulator inspect --rom roms/game.nes
+  node scripts/rea-fc.mjs emulator provision --rom roms/game.nes
   node scripts/rea-fc.mjs info roms/game.nes
   node scripts/rea-fc.mjs patch --rom roms/game.nes --out out/game.patched.nes --edit 0x15A2:EA:AD --ips out/game.ips
   node scripts/rea-fc.mjs cheat encode --address 0xC0A0 --value 0x0A --compare 0x03

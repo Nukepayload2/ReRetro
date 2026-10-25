@@ -29,6 +29,7 @@ node scripts/verify.mjs
 node scripts/rea-fc.mjs doctor --live --rom <rom>
 ```
 
+- 桥必须以 MCP 服务器形态注册进当前客户端，取证走客户端托管的常驻 stdio 会话；仓库脚本里的批处理客户端只做核验（每批拉起一个桥进程，单次调用约 1.6 s），不要用它逐帧轮询。
 - 只有 `bridge-handshake` 通过，才允许做动态取证；通过只证明工具面可达，不证明目标 ROM 已载入。
 - 握手不覆盖模拟器：模拟器层（profile 目录、`settings.json`、原生库、手柄端口）与 `input-probe` 也要过。哪一层没过按 `docs/emulator-init.md` 补齐，`node scripts/rea-fc.mjs emulator provision` 一次写配置、补端口、复制原生库。
 - 工具清单要 Mesen 至少启动一次才有缓存；报「Mesen is not running」时先打开 Mesen，再重跑核验。

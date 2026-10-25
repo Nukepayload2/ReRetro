@@ -194,6 +194,19 @@ Start \`Debug > MCP Server > Start\` in ${emulator ?? 'Mesen'} and register
 \`http://127.0.0.1:51234/mcp/\` instead. Use \`out/mcp.http.json\` as the template.
 The HTTP listener binds to loopback only.
 
+## Keep the session resident
+
+Register this entry in the client and let the client own the process: one
+long-lived \`MCPServer.exe --stdio\`, reused for every tool call. Interactive
+forensics (frame polling, repeated memory reads) depends on that session
+staying up.
+
+The kit's own batch client (\`scripts/lib/mcp.mjs\`) spawns a bridge per batch
+and is meant for \`verify.mjs\`, \`diagnose.mjs\` and CI only — measured on one
+machine, a single call through it costs ~1.6 s to start plus the call, while
+five calls in one resident session cost ~0.3 s in total. Do not drive
+per-frame polling through it.
+
 ## Verify
 
 \`\`\`powershell

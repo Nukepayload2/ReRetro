@@ -37,6 +37,7 @@
   "scripts": {
     "rea-fc": "node scripts/rea-fc.mjs",
     "setup": "node scripts/setup.mjs",
+    "doctor": "node scripts/diagnose.mjs",
     "verify": "node scripts/verify.mjs",
     "check": "node scripts/check-docs.mjs",
     "test": "node --test tests/"

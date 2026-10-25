@@ -93,5 +93,5 @@ node scripts/rea-fc.mjs cheat encode --address <cpu> --value <v> --compare <c>
 
 ## 参考
 
-- `references/mesen-tool-surface.md` — pinned 版本的 16 个工具、界面侧动作与危险动作
+- `references/mesen-tool-surface.md` — pinned 版本的 23 个工具、界面侧兜底与危险动作
 - `references/patch-and-cheats.md` — 补丁/金手指检查表与脚本字段

@@ -13,6 +13,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 
 const COMMANDS = {
   setup: { script: 'setup.mjs', summary: 'detect build tools, build the tools, write MCP client config' },
+  doctor: { script: 'diagnose.mjs', summary: 'walk the bridge layers and name the next action' },
   verify: { script: 'verify.mjs', summary: 'prove the bridge and tool surface, optionally probe a live Mesen' },
   patch: { script: 'patch-rom.mjs', summary: 'write a deterministic ROM patch and optional IPS file' },
   info: { script: 'patch-rom.mjs', summary: 'print the iNES header of a ROM', prefix: ['--info'] },

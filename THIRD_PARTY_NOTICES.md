@@ -1,6 +1,6 @@
 # Third-party notices
 
-本仓库代码与文档是 GPL-3.0（见 [LICENSE](LICENSE)）。下面的工具是独立作品，以 git submodule 引入，各自保留许可；本仓库不重新许可它们，也不提交它们的二进制。
+本仓库代码与文档采用 GNU General Public License v3.0（GPLv3，SPDX：`GPL-3.0-only`，全文见 [LICENSE](LICENSE)）。下面的工具是独立作品，以 git submodule 引入，各自保留许可；本仓库不重新许可它们，也不提交它们的二进制。
 
 ## MesenGM — `third_party/MesenGM`
 
@@ -8,7 +8,7 @@
 - 许可：GNU General Public License v3.0（`git submodule update --init` 后见 `third_party/MesenGM/LICENSE`）
 - 角色：NES 模拟器与 MCP 调试桥（`MCPServer.exe`），动态取证侧。
 
-`scripts/lib/cheat.mjs` 的 Game Genie 位序与校验位布局取自该工程的 `Core/Shared/CheatManager.cpp`（`ConvertFromNesGameGenie`）。这是本仓库整体采用 GPL-3.0 的原因之一；若只想用 MIT 分发本仓库，需要先独立重推该位序表并移除该推导说明。
+`scripts/lib/cheat.mjs` 的 Game Genie 位序与校验位布局取自该工程的 `Core/Shared/CheatManager.cpp`（`ConvertFromNesGameGenie`）。这是本仓库整体采用 GPLv3 的原因之一；若只想用更宽松的许可分发本仓库，需要先独立重推该位序表并移除该推导说明。
 
 ## 6502bench（SourceGen）— `third_party/6502bench`
 

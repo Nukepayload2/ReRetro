@@ -37,9 +37,9 @@ git submodule update --init --recursive
 
 ```powershell
 git init -b main
-git submodule add https://github.com/Hoshiruna/MesenGM.git third_party/MesenGM
+git submodule add https://github.com/Nukepayload2/MesenGM.git third_party/MesenGM
 git submodule add https://github.com/fadden/6502bench.git third_party/6502bench
-git -C third_party/MesenGM checkout 481f4599b7ad9f8db769556f875930a40a307834
+git -C third_party/MesenGM checkout e18024c81a4dd9b7b7f08e5df0b5fbc2d05b38ca
 git -C third_party/6502bench checkout f43f3761fd63cef7fe2e2e71fb2b58fec0c4a73e
 git add -A
 git commit -m "feat: standalone NES reversing kit with pinned tool submodules"
@@ -125,27 +125,28 @@ node scripts/verify.mjs --rom <rom-path> --live   # 追加「载入的是不是�
 
 | 检查项 | 期望结果 | 不满足说明 |
 |--------|---------|-----------|
-| 工具列表 | 至少出现核心 16 个：`debugger_status`、`get_rom_info`、`get_cpu_state`、`get_ppu_state`、`get_screen`、`get_memory_range`、`search_memory`、`set_memory`、`get_disassembly`、`get_trace_tail`、`get_debug_events`、`set_breakpoints`、`step`、`resume`、`pause`、`save_rom`；新版构建还会带 7 个可选工具（载入/关闭 ROM、存档/读档、输入覆盖、按帧推进） | 报「Mesen is not running」是缓存还没生成：先打开一次 Mesen；其余情况检查客户端是否加载了新配置 |
+| 工具列表 | `debugger_status`、`get_rom_info`、`load_rom`、`close_rom`、`get_cpu_state`、`get_ppu_state`、`get_screen`、`get_memory_range`、`search_memory`、`set_memory`、`get_disassembly`、`get_trace_tail`、`get_debug_events`、`set_breakpoints`、`step`、`resume`、`pause`、`run_frames`、`set_input`、`clear_input`、`save_rom`、`save_state`、`load_state`，共 23 个 | 报「Mesen is not running」是缓存还没生成：先打开一次 Mesen；其余情况检查客户端是否加载了新配置 |
 | `get_rom_info` | `rom_path` 是目标 ROM，`format` 不是 `Unknown` | 桥通了但没载入 ROM，或载入了别的 ROM |
 | `get_rom_info` 的 `memory_types` | 含 `NesPrgRom`、`NesInternalRam` 等区域及其 ID 与大小 | 不要凭记忆填内存区 ID，一律取自本次返回 |
 | `debugger_status` | `debugger_running`、`emulation_running`、`execution_stopped` 可解释 | 握手成功不代表 ROM 在跑 |
 | 一次实际内存读 | `get_memory_range` 能读到已知字节 | 只有状态接口通、内存接口不通时，不能作为取证依据 |
 
-`--rom` 默认只做比对：它把 `get_rom_info.rom_path` 与给定路径规范化后比较，不改变模拟器状态。加 `--load` 时，若本次工具面带 `load_rom`，先让它载入再比对；没有该工具则按界面载入处理并在输出里说明。
+`--rom` 默认只做比对：它把 `get_rom_info.rom_path` 与给定路径规范化后比较，不改变模拟器状态。加 `--load` 时先调 `load_rom` 载入再比对；本地构建缺该工具时按界面载入处理并在输出里说明。
 
 核验通过后，把本次的 `memory_types`（名称、ID、大小）记进工作台账；换 ROM 或换 Mesen 会话后必须重新核验。同时记下哪些接口在本版本可用：断点能设但事件/轨迹计数恒为 0 时，后续取证要直接走帧轮询，不要在会话里反复重试同一个接口。
 
-工具面随构建变化：核心 16 个是 pinned 提交就有的，可选 7 个出现在更新的 MesenGM 构建里。`verify.mjs` 只要求核心集，并把检测到的可选工具列出来；以本次 `tools/list` 返回为准，不要假设某个可选工具一定在。
+工具面以 pinned 提交为准（23 个）。本地构建若多出工具，`verify.mjs` 会把它们列在可选集里而不判失败；缺核心工具才降级。以本次 `tools/list` 返回为准。
 
 ## 载入目标 ROM
 
-- 在 Mesen 界面里打开 ROM；套补丁同样在界面里选 IPS/UPS/BPS，目录里的补丁不会自动应用。
-- 构建带 `load_rom`/`close_rom` 时也可以让桥载入或关闭 ROM；它同样会替换当前 ROM，并影响共享同一实例的其他客户端。
+- 用 `load_rom` 载入（可同时给 `patch_path` 套 IPS/UPS/BPS）；桥不可用时在 Mesen 界面打开，目录里的补丁不会自动应用。
+- `load_rom`/`close_rom` 会替换或关闭当前 ROM，并影响共享同一实例的其他客户端；动手前确认没有别人在用。
 - 载入后重新 `get_rom_info`，确认 `rom_path` 与格式符合预期。
-- 载入会替换当前 ROM。同一个 Mesen 实例、同一条命名管道上的调试状态是共享的：换 ROM、换断点列表会影响同时连着的其他客户端。动手前确认没有别人在用。
-- 需要从模拟器导出一份改动后的 ROM 或 IPS 时用 `save_rom`；它不是存档工具。带 `save_state`/`load_state` 的构建可以用它们做 A/B，没有时用 Mesen 界面的存档功能，两者都不能单独证明补丁有效。
+- 导出一份改动后的 ROM 或 IPS 用 `save_rom`；它不是存档工具。A/B 用 `save_state`/`load_state`，存档读档都不能单独证明补丁有效。
 
 ## 常见故障
+
+先跑 `node scripts/rea-fc.mjs doctor`：它按层列出断点与下一步，比对着症状猜快。下表是最常见的几种。
 
 | 症状 | 处理 |
 |------|------|
@@ -156,7 +157,7 @@ node scripts/verify.mjs --rom <rom-path> --live   # 追加「载入的是不是�
 | 工具调用报 Mesen 未运行 | 打开 Mesen 并载入 ROM；桥不用重启 |
 | 工具调用超时 | Mesen 停在自己的调试器或弹了模态窗口；先恢复执行、关对话框。服务端超时上限查 `third_party/MesenGM` |
 | 报「No ROM is loaded」 | 在 Mesen UI 里打开游戏 |
-| 工具缺失或多余 | 核心 16 个必须有；缺核心说明连的是旧二进制，多出来的通常是新版构建的可选工具（载入 ROM、存档、输入、推帧）。以本次返回为准 |
+| 工具缺失或多余 | pinned 提交的 23 个必须有；缺核心说明连的是旧二进制。多出来的新工具会列在可选集里，不影响通过 |
 | HTTP 启动失败 | 端口被占用，在 Debug > MCP Server 里换端口，并同步改客户端 URL |
 | 工具能调但整段反汇编是 `unidentified` | 不是注册问题，是反汇编分析缓存缺该段；按 [workflow](workflow.md) 的工具基线处理，不要转去手写反汇编器 |
 | 工具行为与源码不一致 | 会话连的是旧进程或旧二进制；重新构建目标、重启 Mesen 与客户端，再重走核验 |

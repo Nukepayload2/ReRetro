@@ -6,7 +6,7 @@
 
 | 路径 | 上游 | 提交 | 许可 | 角色 |
 |------|------|------|------|------|
-| `third_party/MesenGM` | `https://github.com/Hoshiruna/MesenGM.git` | `481f4599b7ad9f8db769556f875930a40a307834` | GPL-3.0 | 动态侧：Mesen 模拟器 + MCP 调试桥 `MCPServer.exe` |
+| `third_party/MesenGM` | `https://github.com/Nukepayload2/MesenGM.git` | `e18024c81a4dd9b7b7f08e5df0b5fbc2d05b38ca` | GPL-3.0 | 动态侧：Mesen 模拟器 + MCP 调试桥 `MCPServer.exe`（23 个工具） |
 | `third_party/6502bench` | `https://github.com/fadden/6502bench.git` | `f43f3761fd63cef7fe2e2e71fb2b58fec0c4a73e` | Apache-2.0 | 静态侧：SourceGen 反汇编工作台 |
 
 提交号同时出现在两处：superproject 的 gitlink（权威）与 `third_party/pins.json`（可读副本）。`scripts/check-docs.mjs` 会核对两者与 `.gitmodules` 是否一致。
@@ -21,9 +21,9 @@
 
 ## 工具面随 pin 变化
 
-pin 的 MesenGM 提交注册 16 个核心工具；更新的构建另带 7 个可选工具：`load_rom`、`close_rom`、`save_state`、`load_state`、`set_input`、`clear_input`、`run_frames`。`verify.mjs` 只要求核心集，并把检测到的可选工具列出来；这两张表在 `scripts/lib/mcp.mjs` 的 `CORE_MESEN_TOOLS` / `OPTIONAL_MESEN_TOOLS` 里定义，是唯一出处。
+pin 的 MesenGM 提交（Nukepayload2 fork）注册 23 个工具：上游 16 个，加上 `load_rom`、`close_rom`、`save_state`、`load_state`、`set_input`、`clear_input`、`run_frames`。必须集在 `scripts/lib/mcp.mjs` 的 `CORE_MESEN_TOOLS`；`OPTIONAL_MESEN_TOOLS` 留空，用于本地构建多出工具时降级报告，不参与通过判定。
 
-上游把可选工具推成正式提交后，把 pin 升级到该提交：
+升级 pin 时先对齐检出提交，再记录 pin、移动 gitlink、重建并核验：
 
 ```powershell
 git -C third_party/MesenGM fetch
@@ -35,7 +35,7 @@ node scripts/setup.mjs
 node scripts/verify.mjs
 ```
 
-`pins --write` 只改 `pins.json`；superproject 的 gitlink 要单独 `git add` 才会跟着移动，否则 `check-docs` 会报两者不一致。新提交若改变工具集合，同步更新上面两个常量与 `docs/`、skill 里的工具表。
+`pins --write` 只改 `pins.json`；superproject 的 gitlink 要单独 `git add` 才会跟着移动，否则 `check-docs` 会报两者不一致。新提交若改变工具集合，同步更新 `CORE_MESEN_TOOLS` 与 `docs/`、skill 里的工具表。
 
 ## 更新策略
 

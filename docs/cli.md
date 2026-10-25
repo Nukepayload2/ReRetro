@@ -24,6 +24,26 @@ node scripts/rea-fc.mjs setup [--mesen-dir <dir>] [--bench-dir <dir>] [--skip-bu
 | `out/client-setup.md` | Claude Code / Codex / 通用 JSON 三种注册写法（定位到桥时才写） |
 | `out/environment.json` | 本次检测结果，供排障与复核（每次运行都写） |
 
+## `doctor`
+
+```powershell
+node scripts/rea-fc.mjs doctor [--live] [--rom <rom-path>] [--timeout <ms>] [--json]
+```
+
+逐层诊断，用来回答「哪里断了、下一步做什么」。`verify` 只给通过/降级；`doctor` 会把每一层单独摊开：
+
+| 层 | 检查内容 | 不通过时的下一步 |
+|----|----------|------------------|
+| 运行时 | Node 版本、平台 | 升级 Node |
+| 仓库与 submodule | 两个工具仓是否检出、是否在 pin 上 | `git submodule update --init --recursive`，再跑 `pins` |
+| 工具二进制 | `MCPServer.exe`、`Mesen.exe`、`SourceGen.exe` 是否定位到 | `setup`，或 `--mesen-dir` 指向已有安装 |
+| 构建工具链 | MSBuild、dotnet、.NET Framework 4.8.1 pack | 安装对应 VS 工作负载与 SDK |
+| 工具列表缓存 | Mesen 写出的 `mcp-tools.cache.json` 是否存在 | 打开一次 Mesen 生成缓存 |
+| 桥握手 | `initialize` / `tools/list` 与工具面比对 | 重新构建或核对 pin |
+| 实时探测（`--live`） | `get_rom_info`、`debugger_status`、一次内存读 | 打开 Mesen、载入 ROM，或加 `--rom` |
+
+退出码：`0` 各层通过，`2` 仓库正常但缺环境（Mesen 没开、缓存没生成），`1` 有需要人处理的问题。`--json` 输出每一层的 `status`、`detail`、`remedy` 与汇总的 `nextActions`。
+
 ## `verify`
 
 ```powershell
@@ -34,7 +54,7 @@ node scripts/rea-fc.mjs verify [--live] [--rom <rom-path>] [--load] [--timeout <
 
 工具清单由 Mesen 在启动时写入本机缓存，桥靠这份缓存离线应答。首次核验前先打开一次 Mesen；否则 `tools/list` 会返回「Mesen is not running」，脚本按降级（退出码 `2`）处理并给出提示。
 
-握手只要求核心 16 个工具；新版 MesenGM 构建多出的可选工具（载入/关闭 ROM、存档/读档、输入覆盖、按帧推进）单独列出，不出现也不判失败。
+握手要求 pinned 的 23 个工具（含载入/关闭 ROM、存档/读档、输入覆盖、按帧推进）；本地构建多出的工具单独列出，不判失败。
 
 `--live` 追加一次实时探测：`get_rom_info`、`debugger_status`，在已载入 ROM 且有内存区时再做一次 `get_memory_range` 实际读取。`--rom` 把 `get_rom_info.rom_path` 与给定路径规范化比较；加 `--load` 时，若本次工具面带 `load_rom`，先让它载入再比对，否则按界面载入处理。
 

@@ -3,8 +3,8 @@
   "submodules": [
     {
       "path": "third_party/MesenGM",
-      "url": "https://github.com/Hoshiruna/MesenGM.git",
-      "commit": "481f4599b7ad9f8db769556f875930a40a307834",
+      "url": "https://github.com/Nukepayload2/MesenGM.git",
+      "commit": "e18024c81a4dd9b7b7f08e5df0b5fbc2d05b38ca",
       "role": "dynamic side: emulator plus the MCP debugger bridge (MCPServer.exe)"
     },
     {

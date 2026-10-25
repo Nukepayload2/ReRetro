@@ -19,11 +19,14 @@ export const DEFAULT_TIMEOUT_MS = 30_000;
 /**
  * Tool surface of the MesenGM MCP bridge.
  *
- * `CORE_MESEN_TOOLS` exist at the commit pinned in `third_party/pins.json`.
- * `OPTIONAL_MESEN_TOOLS` exist in newer MesenGM builds (ROM loading, save
- * states, input overrides, frame stepping); a session may or may not advertise
- * them. The running server's own `tools/list` is authoritative, so verification
- * requires the core set and reports the optional set without failing on it.
+ * `CORE_MESEN_TOOLS` exist at the commit pinned in `third_party/pins.json`
+ * (the Nukepayload2 fork, which adds ROM loading, save states, input overrides
+ * and frame stepping on top of the upstream 16).
+ *
+ * `OPTIONAL_MESEN_TOOLS` is the escape hatch for tools that appear in a local
+ * build but not at the pin: verification requires the core set and reports the
+ * optional set without failing on it. Keep it empty unless a tool is genuinely
+ * optional for the pinned surface.
  *
  * The bridge replays a tool-list cache that Mesen writes when it starts, so
  * `tools/list` answers offline only after Mesen has run at least once in the
@@ -32,6 +35,8 @@ export const DEFAULT_TIMEOUT_MS = 30_000;
 export const CORE_MESEN_TOOLS = [
   'debugger_status',
   'get_rom_info',
+  'load_rom',
+  'close_rom',
   'get_cpu_state',
   'get_ppu_state',
   'get_screen',
@@ -45,18 +50,16 @@ export const CORE_MESEN_TOOLS = [
   'step',
   'resume',
   'pause',
-  'save_rom',
-];
-
-export const OPTIONAL_MESEN_TOOLS = [
-  'load_rom',
-  'close_rom',
-  'save_state',
-  'load_state',
+  'run_frames',
   'set_input',
   'clear_input',
-  'run_frames',
+  'save_rom',
+  'save_state',
+  'load_state',
 ];
+
+/** Tools that may exist in a local build but are not required by the pin. */
+export const OPTIONAL_MESEN_TOOLS = [];
 
 /** Every documented tool, core first. */
 export const EXPECTED_MESEN_TOOLS = [...CORE_MESEN_TOOLS, ...OPTIONAL_MESEN_TOOLS];

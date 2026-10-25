@@ -198,9 +198,9 @@
 | 时机 | 去查 |
 |------|------|
 | 首次连接、确认 ROM 与内存区标识 | `MCP_SERVER.md` 的工具表，配合运行时返回的标识列表 |
-| 载入 ROM、套补丁、切换 ROM | 有 `load_rom`/`close_rom` 时用桥，否则用 Mesen 界面；导出用 `save_rom`，见 `MCP_SERVER.md` |
+| 载入 ROM、套补丁、切换 ROM | `load_rom`/`close_rom`，导出用 `save_rom`，见 `MCP_SERVER.md`；桥不可用时用 Mesen 界面 |
 | 读写/搜索内存、下断点、单步推帧 | `MCPServer/skills/mesengm-mcp/references/tool-details.md` |
-| 存档读档做 A/B、导出 IPS | 有 `save_state`/`load_state` 时用桥，否则用 Mesen 界面；导出 ROM/IPS 用 `save_rom`，见 `MCP_SERVER.md` |
+| 存档读档做 A/B、导出 IPS | `save_state`/`load_state` 做 A/B，`save_rom` 导出，见 `MCP_SERVER.md`；桥不可用时用 Mesen 界面 |
 | 确认 PRG 地址是扁平镜像还是 bank 视图 | `Core/NES/BaseMapper.cpp` 的地址映射与 PRG 内存注册处 |
 
 工作流只依赖以下语义，具体工具名自行对号：

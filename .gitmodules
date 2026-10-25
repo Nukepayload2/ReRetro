@@ -3,4 +3,4 @@
 	url = https://github.com/fadden/6502bench.git
 [submodule "third_party/MesenGM"]
 	path = third_party/MesenGM
-	url = https://github.com/Hoshiruna/MesenGM.git
+	url = https://github.com/Nukepayload2/MesenGM.git

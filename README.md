@@ -19,20 +19,19 @@ node scripts/verify.mjs     # 证明调试桥与工具面可用
 node scripts/verify.mjs --live --rom <rom-path>
 ```
 
-之后按 [docs/workflow.md](docs/workflow.md) 干活。
+之后按 [docs/workflow.md](docs/workflow.md) 干活。环境没跑起来时先跑 `node scripts/rea-fc.mjs doctor`：它按「运行时 → submodule → 二进制 → 工具链 → 工具列表缓存 → 握手 → 实时探测」逐层给出断点与下一步。
 
 ## 包含什么
 
 | 部分 | 内容 |
 |------|------|
 | 规则 | [docs/workflow.md](docs/workflow.md)：适用边界、核心原则、静态定位、动态取证、补丁形态、金手指形态、冷启动验收、交付模板、禁止项、症状诊断 |
-| 工具 | `third_party/MesenGM`（模拟器 + MCP 调试桥，核心 16 个工具，新版构建另带 7 个可选工具）、`third_party/6502bench`（SourceGen 反汇编），pin 见 [docs/third-party.md](docs/third-party.md) |
-| 命令 | `setup`、`verify`、`info`、`patch`、`cheat`、`pins`、`check`、`test`，见 [docs/cli.md](docs/cli.md) |
+| 工具 | `third_party/MesenGM`（模拟器 + MCP 调试桥，23 个工具，含载入 ROM / 存档读档 / 输入 / 推帧）、`third_party/6502bench`（SourceGen 反汇编），pin 见 [docs/third-party.md](docs/third-party.md) |
+| 命令 | `setup`、`doctor`、`verify`、`info`、`patch`、`cheat`、`pins`、`check`、`test`，见 [docs/cli.md](docs/cli.md) |
 | 智能体 | [.agents/skills/nes-rom-reversing/SKILL.md](.agents/skills/nes-rom-reversing/SKILL.md) |
 | 测试 | `node --test tests/`：iNES 解析、偏移换算、Game Genie 编解码往返、补丁确定性、IPS 往返、桥握手 |
 
 ## 要求
-
 - Windows 10/11 x64（Mesen 的 MCP 桥只随 Windows 构建提供；SourceGen 是 WPF 程序）。
 - Node.js `>=22.19`。
 - 从源码构建时：Visual Studio 2022/2026，含 C++ 桌面工作负载、.NET 10 SDK、.NET Framework 4.8.1 targeting pack。
@@ -69,4 +68,6 @@ node scripts/check-docs.mjs # 仓库自检：无外部工作区依赖、无本�
 
 ## 许可
 
-本仓库代码与文档为 GPL-3.0（`scripts/lib/cheat.mjs` 的位序取自 MesenGM 的 GPL 实现）。`third_party/MesenGM` 为 GPL-3.0，`third_party/6502bench` 为 Apache-2.0，各自保留其许可与声明；详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) 与 [LICENSE](LICENSE)。
+本仓库代码与文档采用 **GNU General Public License v3.0（GPLv3，SPDX：`GPL-3.0-only`）**，全文见 [LICENSE](LICENSE)。`scripts/lib/cheat.mjs` 的 Game Genie 位序取自 MesenGM 的 GPL 实现，这也是整体采用 GPLv3 的原因。
+
+`third_party/MesenGM` 同为 GPL-3.0；`third_party/6502bench` 为 Apache-2.0。两者各自保留其许可与声明，本仓库不重新许可它们；详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

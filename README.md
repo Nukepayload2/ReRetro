@@ -26,8 +26,8 @@ node scripts/verify.mjs --live --rom <rom-path>
 | 部分 | 内容 |
 |------|------|
 | 规则 | [docs/workflow.md](docs/workflow.md)：适用边界、核心原则、静态定位、动态取证、补丁形态、金手指形态、冷启动验收、交付模板、禁止项、症状诊断 |
-| 工具 | `third_party/MesenGM`（模拟器 + MCP 调试桥，pinned 版本 16 个工具）、`third_party/6502bench`（SourceGen 反汇编），pin 见 [docs/third-party.md](docs/third-party.md) |
-| 命令 | `setup`、`verify`、`info`、`patch`、`cheat`、`check`、`test`，见 [docs/cli.md](docs/cli.md) |
+| 工具 | `third_party/MesenGM`（模拟器 + MCP 调试桥，核心 16 个工具，新版构建另带 7 个可选工具）、`third_party/6502bench`（SourceGen 反汇编），pin 见 [docs/third-party.md](docs/third-party.md) |
+| 命令 | `setup`、`verify`、`info`、`patch`、`cheat`、`pins`、`check`、`test`，见 [docs/cli.md](docs/cli.md) |
 | 智能体 | [.agents/skills/nes-rom-reversing/SKILL.md](.agents/skills/nes-rom-reversing/SKILL.md) |
 | 测试 | `node --test tests/`：iNES 解析、偏移换算、Game Genie 编解码往返、补丁确定性、IPS 往返、桥握手 |
 

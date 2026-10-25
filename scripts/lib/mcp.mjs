@@ -17,15 +17,19 @@ import { join } from 'node:path';
 export const DEFAULT_TIMEOUT_MS = 30_000;
 
 /**
- * Tool names registered by the pinned MesenGM bridge
- * (`UI/Debugger/Utilities/McpDebugService.cs` at the commit in pins.json).
+ * Tool surface of the MesenGM MCP bridge.
+ *
+ * `CORE_MESEN_TOOLS` exist at the commit pinned in `third_party/pins.json`.
+ * `OPTIONAL_MESEN_TOOLS` exist in newer MesenGM builds (ROM loading, save
+ * states, input overrides, frame stepping); a session may or may not advertise
+ * them. The running server's own `tools/list` is authoritative, so verification
+ * requires the core set and reports the optional set without failing on it.
  *
  * The bridge replays a tool-list cache that Mesen writes when it starts, so
  * `tools/list` answers offline only after Mesen has run at least once in the
- * current user profile. A newer local Mesen build may advertise more tools;
- * the running server's own list is authoritative.
+ * current user profile.
  */
-export const EXPECTED_MESEN_TOOLS = [
+export const CORE_MESEN_TOOLS = [
   'debugger_status',
   'get_rom_info',
   'get_cpu_state',
@@ -43,6 +47,19 @@ export const EXPECTED_MESEN_TOOLS = [
   'pause',
   'save_rom',
 ];
+
+export const OPTIONAL_MESEN_TOOLS = [
+  'load_rom',
+  'close_rom',
+  'save_state',
+  'load_state',
+  'set_input',
+  'clear_input',
+  'run_frames',
+];
+
+/** Every documented tool, core first. */
+export const EXPECTED_MESEN_TOOLS = [...CORE_MESEN_TOOLS, ...OPTIONAL_MESEN_TOOLS];
 
 export class McpError extends Error {
   constructor(message, details = {}) {
@@ -292,13 +309,22 @@ export function callBridgeTools({ command, calls, timeoutMs = DEFAULT_TIMEOUT_MS
 }
 
 /** Compare the running tool surface with the documented one. */
-export function compareTools(tools, expected = EXPECTED_MESEN_TOOLS) {
+/**
+ * Compare the running tool surface with the documented one.
+ *
+ * `ok` only requires the core set: an older or newer MesenGM build stays
+ * usable, and the optional tools are reported rather than enforced.
+ */
+export function compareTools(tools, { core = CORE_MESEN_TOOLS, optional = OPTIONAL_MESEN_TOOLS } = {}) {
   const present = new Set(tools.map(tool => tool.name));
+  const documented = [...core, ...optional];
   return {
-    present: expected.filter(name => present.has(name)),
-    missing: expected.filter(name => !present.has(name)),
-    unexpected: tools.map(tool => tool.name).filter(name => !expected.includes(name)),
-    ok: expected.every(name => present.has(name)),
+    present: core.filter(name => present.has(name)),
+    missing: core.filter(name => !present.has(name)),
+    optionalPresent: optional.filter(name => present.has(name)),
+    optionalMissing: optional.filter(name => !present.has(name)),
+    unexpected: tools.map(tool => tool.name).filter(name => !documented.includes(name)),
+    ok: core.every(name => present.has(name)),
   };
 }
 

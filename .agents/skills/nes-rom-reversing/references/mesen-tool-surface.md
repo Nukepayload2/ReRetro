@@ -1,8 +1,8 @@
 # Mesen 调试桥工具面
 
-pinned 的 MesenGM（见 `third_party/pins.json`）注册 16 个工具，实现在 `third_party/MesenGM/UI/Debugger/Utilities/McpDebugService.cs`；说明见 `third_party/MesenGM/MCP_SERVER.md`，参数细节见 `third_party/MesenGM/MCPServer/skills/mesengm-mcp/references/tool-details.md`。工具名与语义以那两份与运行时返回为准。
+核心 16 个工具在 pinned 的 MesenGM（见 `third_party/pins.json`）里就有；更新构建另带 7 个可选工具。实现在 `third_party/MesenGM/UI/Debugger/Utilities/McpDebugService.cs`；说明见 `third_party/MesenGM/MCP_SERVER.md`，参数细节见 `third_party/MesenGM/MCPServer/skills/mesengm-mcp/references/tool-details.md`。工具名与语义以那两份与运行时返回为准。
 
-工具清单由 Mesen 在启动时写入本机缓存，桥在没有 Mesen 时靠缓存离线应答 `tools/list`。新机器先打开一次 Mesen；本机若用自己构建的开发版 Mesen，工具面可能多于这 16 个。
+工具清单由 Mesen 在启动时写入本机缓存，桥在没有 Mesen 时靠缓存离线应答 `tools/list`。新机器先打开一次 Mesen。以本次 `tools/list` 返回为准：可选工具在不在，决定了哪些动作走桥、哪些走界面。
 
 ## 读状态
 
@@ -43,9 +43,21 @@ pinned 的 MesenGM（见 `third_party/pins.json`）注册 16 个工具，实现�
 |------|------|------|
 | `save_rom` | 把模拟器当前 ROM（含内存改动）导出为 ROM 或 IPS | 不是存档工具；导出前确认目标路径与意图 |
 
+## 可选工具（新版构建）
+
+| 工具 | 用途 | 注意 |
+|------|------|------|
+| `load_rom` | 载入 ROM，可同时给 `patch_path`（IPS/UPS/BPS）与 `console_type` | 会替换当前 ROM，并影响共享同一实例的其它客户端；目录里的补丁不会自动套用 |
+| `close_rom` | 停止并关闭当前 ROM，不关 Mesen | 之后其余 ROM 相关工具报「No ROM is loaded」 |
+| `save_state` / `load_state` | 存档 / 读档，做 A/B 与回滚 | 路径要绝对、父目录已存在；默认不覆盖已有文件；存档不是补丁有效的证据 |
+| `set_input` / `clear_input` | 按住 / 释放手柄按键 | 覆盖不会随停机自动解除，用完必须 `clear_input` |
+| `run_frames` | 推进固定帧数后停在调试器 | 适合让画面走一帧；先看 `debugger_status` 再读状态 |
+
+不确定在不在时先握手看 `tools/list`；缺失就走下面的界面侧动作，不要靠猜。
+
 ## 界面侧动作
 
-pinned 版本没有载入 ROM、存档/读档、手柄输入覆盖、按帧推进、关闭 ROM 的工具，这些都在 Mesen 界面里做：
+核心工具面里没有载入 ROM、存档/读档、手柄输入覆盖、按帧推进、关闭 ROM；这些在 Mesen 界面里做：
 
 - 载入 ROM、套用 IPS/UPS/BPS：Mesen 的打开/补丁流程。
 - 存档、读档、快进：Mesen 的存档功能，用于导航和 A/B；不能单独证明补丁有效。

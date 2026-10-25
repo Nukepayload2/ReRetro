@@ -21,7 +21,19 @@
 
 ## 工具面随 pin 变化
 
-pin 的 MesenGM 提交注册 16 个 MCP 工具，没有载入 ROM、存档/读档、输入覆盖、按帧推进这些工具；这些动作在 Mesen 界面里做。上游更新会改变工具面，升级后必须重跑 `node scripts/verify.mjs`，不要沿用旧结论。
+pin 的 MesenGM 提交注册 16 个核心工具；更新的构建另带 7 个可选工具：`load_rom`、`close_rom`、`save_state`、`load_state`、`set_input`、`clear_input`、`run_frames`。`verify.mjs` 只要求核心集，并把检测到的可选工具列出来；这两张表在 `scripts/lib/mcp.mjs` 的 `CORE_MESEN_TOOLS` / `OPTIONAL_MESEN_TOOLS` 里定义，是唯一出处。
+
+上游把可选工具推成正式提交后，把 pin 升级到该提交：
+
+```powershell
+git -C third_party/MesenGM fetch
+git -C third_party/MesenGM checkout <new-commit>
+node scripts/rea-fc.mjs pins --write
+node scripts/setup.mjs
+node scripts/verify.mjs
+```
+
+`pins --write` 只改 pin 记录，不改代码。新提交若改变工具集合，同步更新上面两个常量与 `docs/`、skill 里的工具表。
 
 ## 更新策略
 
@@ -29,15 +41,11 @@ pin 指向两个上游的 `master` 分支提交，升级是显式动作，不是
 
 ```powershell
 git submodule update --remote third_party/MesenGM third_party/6502bench
+node scripts/rea-fc.mjs pins --write
+node scripts/setup.mjs
+node scripts/verify.mjs
+node scripts/rea-fc.mjs test
 ```
-
-然后：
-
-1. 用 `git submodule status` 读出新的提交号。
-2. 更新 `third_party/pins.json` 的 `commit` 字段。
-3. `node scripts/check-docs.mjs` 确认三者一致。
-4. 重新构建（`node scripts/setup.mjs`）并跑 `node scripts/verify.mjs`。
-5. `node scripts/rea-fc.mjs test`。
 
 工具行为变化会改变取证结论，升级后必须重跑核验；只更新 pin 而不重跑核验，等于把「源码改了」当成「行为已验证」。
 

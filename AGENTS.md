@@ -25,7 +25,10 @@ node --test tests/            # 全部测试
 node scripts/check-docs.mjs   # 自检：占位符、外部依赖、本机路径、断链、pin 一致性
 node scripts/setup.mjs        # 构建/定位工具并写客户端配置
 node scripts/verify.mjs       # 桥与工具面证据
+node scripts/rea-fc.mjs pins  # 对比或记录 submodule pin（升级后加 --write）
 ```
+
+工具面分核心与可选：核心 16 个由 pinned 提交保证，可选 7 个（载入 ROM、存档读档、输入、推帧）只在新版构建出现。核验只要求核心集，检测结果里单独列出可选工具；`scripts/lib/mcp.mjs` 的 `CORE_MESEN_TOOLS` / `OPTIONAL_MESEN_TOOLS` 是唯一出处，改工具集合时两处一起改。
 
 `tests/mcp.test.mjs` 在 `MCPServer.exe` 不存在、或本机还没有 Mesen 写出的工具缓存时自动跳过；要让它在 CI 之外真正跑起来，先构建 MesenGM 并打开一次 Mesen。`verify.mjs` 在同样情况下把握手判为降级并给出下一步，而不是伪装通过。
 

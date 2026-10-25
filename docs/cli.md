@@ -27,14 +27,16 @@ node scripts/rea-fc.mjs setup [--mesen-dir <dir>] [--bench-dir <dir>] [--skip-bu
 ## `verify`
 
 ```powershell
-node scripts/rea-fc.mjs verify [--live] [--rom <rom-path>] [--timeout <ms>] [--json]
+node scripts/rea-fc.mjs verify [--live] [--rom <rom-path>] [--load] [--timeout <ms>] [--json]
 ```
 
 按顺序校验：submodule 检出与 pin → 桥可执行文件 → `initialize`/`tools/list` 握手 →（可选）Mesen 实时探测。
 
 工具清单由 Mesen 在启动时写入本机缓存，桥靠这份缓存离线应答。首次核验前先打开一次 Mesen；否则 `tools/list` 会返回「Mesen is not running」，脚本按降级（退出码 `2`）处理并给出提示。
 
-`--live` 追加一次实时探测：`get_rom_info`、`debugger_status`，在已载入 ROM 且有内存区时再做一次 `get_memory_range` 实际读取。`--rom` 把 `get_rom_info.rom_path` 与给定路径规范化比较，不改变模拟器状态。
+握手只要求核心 16 个工具；新版 MesenGM 构建多出的可选工具（载入/关闭 ROM、存档/读档、输入覆盖、按帧推进）单独列出，不出现也不判失败。
+
+`--live` 追加一次实时探测：`get_rom_info`、`debugger_status`，在已载入 ROM 且有内存区时再做一次 `get_memory_range` 实际读取。`--rom` 把 `get_rom_info.rom_path` 与给定路径规范化比较；加 `--load` 时，若本次工具面带 `load_rom`，先让它载入再比对，否则按界面载入处理。
 
 ## `info`
 
@@ -72,6 +74,14 @@ node scripts/rea-fc.mjs cheat check --rom <rom> (--offset 0xNN | --address 0xNNN
 
 - `decode`/`encode` 使用 `third_party/MesenGM` 的 `CheatManager` 位序：6 位码是「地址 + 值」，8 位码是「地址 + 值 + 校验值」。
 - `check` 打印同一 bank 内偏移在每个 PRG bank 的原始字节，并给出目标 bank 的校验值是否唯一。唯一性不成立时不要交付 8 位码。
+
+## `pins`
+
+```powershell
+node scripts/rea-fc.mjs pins [--write] [--json]
+```
+
+对比 `third_party/pins.json` 与两个 submodule 实际检出的提交。默认只报告并在一不一致时退出 `1`；`--write` 把实际提交写回 `pins.json`。升级 submodule 后用它记录 pin，再跑 `verify`。
 
 ## `check`
 

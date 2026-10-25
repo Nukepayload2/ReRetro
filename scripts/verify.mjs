@@ -71,10 +71,11 @@ function gateBridge() {
     const surface = readToolSurface({ command: bridge, timeoutMs });
     const comparison = compareTools(surface.tools);
     const ok = comparison.ok && surface.tools.length > 0;
-    const detail = `${surface.tools.length} tools from ${surface.server?.name ?? 'unknown'} ${surface.server?.version ?? ''}`.trim();
-    pushGate('bridge-handshake', ok ? 'pass' : 'warn', ok
-      ? detail
-      : `${detail}; missing: ${comparison.missing.join(', ')}`);
+    const version = `${surface.server?.name ?? 'unknown'} ${surface.server?.version ?? ''}`.trim();
+    const detail = `${surface.tools.length} tools from ${version}: ${comparison.present.length} core` +
+      (comparison.optionalPresent.length > 0 ? ` + ${comparison.optionalPresent.length} optional (${comparison.optionalPresent.join(', ')})` : '') +
+      (comparison.missing.length > 0 ? `; missing core: ${comparison.missing.join(', ')}` : '');
+    pushGate('bridge-handshake', ok ? 'pass' : 'warn', detail);
     return {
       ok,
       server: surface.server,
@@ -104,12 +105,18 @@ function probeLive() {
 
   let first;
   try {
+    const calls = [];
+    // `--load` uses the bridge's own loader when the session advertises it
+    // (newer MesenGM builds). Without it the ROM is loaded in the Mesen UI and
+    // `--rom` only compares.
+    if (rom && args.flag('load')) {
+      calls.push({ name: 'load_rom', arguments: { path: resolve(rom) } });
+    }
+    calls.push({ name: 'get_rom_info', arguments: {} });
+    calls.push({ name: 'debugger_status', arguments: {} });
     first = callBridgeTools({
       command: bridge,
-      calls: [
-        { name: 'get_rom_info', arguments: {} },
-        { name: 'debugger_status', arguments: {} },
-      ],
+      calls,
       timeoutMs: Math.max(timeoutMs, 60_000),
     });
   } catch (error) {
@@ -136,6 +143,15 @@ function probeLive() {
     error: entry.error,
     text: entry.result ? resultText(entry.result).slice(0, 4_000) : null,
   }));
+
+  if (rom && args.flag('load') && !first.tools.some(tool => tool.name === 'load_rom')) {
+    calls.push({
+      name: 'load_rom',
+      ok: false,
+      error: { message: 'this bridge build has no load_rom tool; load the ROM in the Mesen UI' },
+      text: null,
+    });
+  }
 
   // One real memory read: the workflow requires more than a status call, and
   // this is the cheapest read that proves the memory path.
@@ -226,6 +242,9 @@ function finish() {
     ['emulator', report.tools.mesen.emulator ? relativePath(report.tools.mesen.emulator) : 'missing'],
     ['SourceGen', report.tools.bench.exe ? relativePath(report.tools.bench.exe) : 'missing'],
     ['handshake', report.handshake?.ok ? `ok (${report.handshake.toolCount} tools)` : 'not proven'],
+    ['tool surface', report.handshake?.comparison
+      ? `${report.handshake.comparison.present.length} core + ${report.handshake.comparison.optionalPresent.length} optional`
+      : 'not measured'],
   ]);
 
   if (report.live) {

@@ -101,7 +101,8 @@
 - 取证一律走客户端托管的常驻 MCP 会话，不要用「每次调用拉起一个桥进程」的批处理客户端做逐帧轮询：常驻会话复用同一次握手，批处理客户端每次都要重新启动并握手。判据是客户端工具面里能看到带服务器前缀的桥工具；只有脚本能读、客户端里看不到，说明注册没生效。
 - 在候选例程上设执行断点，确认实际走的是哪条分支，而不是只看最终画面。
 - 断点命中后的寄存器、执行轨迹、调试事件取证走调试桥接口；它的反汇编只做就近指令边界核对，不替代静态分析。
-- 写断点命中后的证据链：`run_frames` 提前返回（`stopped_by_breakpoint` 为真、`frames_elapsed` 小于 `frames_requested`、`timed_out` 为假）→ 用 `pc`、`breakpoint_id` 对上号 → `get_debug_events` 里取同一帧的 `Breakpoint` 事件与后续读写事件。`frames_elapsed` 小于请求值不等于卡死。
+- 写断点命中后的证据链：`run_frames` 提前返回（`stopped_by_breakpoint` 为真、`break_source` 为 `Breakpoint`、`frames_elapsed` 小于 `frames_requested`、`timed_out` 为假）→ 用 `pc`、`breakpoint_id` 对上号 → 再看 `get_debug_events` 里的读写事件。`frames_elapsed` 小于请求值不等于卡死。
+- 命中不等于事件已记录：开了预测型断点（Mesen 默认）时，CPU 停在「即将访问」的指令上，`get_debug_events` 里可能还没有对应的 `Breakpoint` 事件。要事件逐次齐全，就在 Mesen 的调试器设置里关掉预测型断点；不要因为事件缺失就判定断点没命中。
 - 命中后 CPU 保持停止，只有 `resume`、`step` 或下一次 `run_frames` 才继续。每帧必命中的断点会把实验冻在第一帧：取证一组寄存器后就删断点或换条件，不要连续空跑推帧。
 - 断点地址按 `memory_type` 比较。省略 `memory_type` 用的是 CPU 相对内存，指令操作数和 RAM 地址都在这个口径里；显式给其他区时，地址必须按那个区自己的编址写。
 - 写断点设好后事件列表仍为空、`run_frames` 又跑满请求帧数时，先怀疑断点没匹配上（地址或 `memory_type` 口径），再怀疑事件通道。确认没匹配上才改走静态路径：已知变量地址 → 用 `sourcegen xref --all-banks --writes-only` 按操作数找候选指令（或退回扁平 PRG 搜 `8D/9D/99 <lo> <hi>`）→ 命中地址还原成 CPU 地址与文件偏移 → 读上下文确认归属。跨 bank 的命中先用 `$8000-$BFFF` 的字节串与各 bank 逐一比对确定当前映射，再换算地址；不要把「值变化的帧号」当成写入指令的位置。

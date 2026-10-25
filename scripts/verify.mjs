@@ -273,8 +273,13 @@ function probeLive() {
 
 /**
  * Prove the breakpoint path end to end: set a write breakpoint on the 6502 stack page
- * (pushed every frame), advance one frame, and require both a frame shortfall and a
- * Breakpoint event. It replaces the whole breakpoint list, which is why it is opt-in.
+ * (pushed every frame), advance frames, and require the stop to be reported with its
+ * address, source and id, plus a served event history. It replaces the whole breakpoint
+ * list, which is why it is opt-in.
+ *
+ * The probe does not require a Breakpoint event: with predictive breakpoints enabled
+ * (Mesen's default) the CPU stops on the instruction that is about to write, so the hit is
+ * reported while the operation, and its event, still lie ahead.
  */
 function probeBreakpointTools(bridge, romInfo, timeout) {
   if (romInfo?.console_type_name !== 'Nes') {
@@ -284,8 +289,12 @@ function probeBreakpointTools(bridge, romInfo, timeout) {
 
   const calls = [
     { name: 'set_breakpoints', arguments: { breakpoints: [{ address: 0x01f0, end_address: 0x01ff, type: 2 }] } },
-    { name: 'run_frames', arguments: { frames: 1, timeout_ms: 1500 } },
-    { name: 'get_debug_events', arguments: { max_count: 50 } },
+    // A stack write happens within the first instructions of a frame, so a working
+    // breakpoint stops the run long before the 60-frame target. Asking for one frame only
+    // would race with the tool's own trailing step at the frame boundary.
+    { name: 'run_frames', arguments: { frames: 60, timeout_ms: 2500 } },
+    // The whole retained history, not a tail: the hit is not always the newest event.
+    { name: 'get_debug_events', arguments: { max_count: 1000 } },
     { name: 'set_breakpoints', arguments: { breakpoints: [] } },
     { name: 'resume', arguments: {} },
   ];
@@ -312,11 +321,23 @@ function probeBreakpointTools(bridge, romInfo, timeout) {
   if (run?.stopped_by_breakpoint !== true) {
     failures.push(`run_frames reported stopped_by_breakpoint ${run?.stopped_by_breakpoint ?? 'nothing'} after a stack write breakpoint`);
   }
+  if (run?.break_source !== 'Breakpoint') {
+    failures.push(`run_frames reported break_source ${run?.break_source ?? 'nothing'} (expected Breakpoint)`);
+  }
+  if (run?.breakpoint_id !== 0) {
+    failures.push(`run_frames reported breakpoint_id ${run?.breakpoint_id ?? 'nothing'} (expected 0)`);
+  }
   if (run?.timed_out === true) {
     failures.push('run_frames timed out instead of stopping at the breakpoint');
   }
-  if (hits.length === 0) {
-    failures.push('get_debug_events listed no Breakpoint event');
+  if (run?.success === true) {
+    failures.push(`run_frames reached all ${run?.frames_requested} frame(s) with the breakpoint armed`);
+  }
+  if (typeof run?.pc !== 'number') {
+    failures.push('run_frames did not report the address it stopped at');
+  }
+  if (!(events?.total > 0)) {
+    failures.push('get_debug_events served an empty history');
   }
   if (cleared?.breakpoints_set !== 0) {
     failures.push(`the trailing set_breakpoints [] did not clear the list (${cleared?.breakpoints_set ?? 'nothing'})`);
@@ -331,8 +352,11 @@ function probeBreakpointTools(bridge, romInfo, timeout) {
     ok: failures.length === 0,
     detail,
     framesElapsed: run?.frames_elapsed ?? null,
+    stoppedByBreakpoint: run?.stopped_by_breakpoint ?? null,
+    resumedFrom: run?.resumed_from ?? null,
     hits: hits.length,
     breakpointIds: hits.map(event => event.breakpoint_id),
+    totalEvents: events?.total ?? null,
   };
 }
 

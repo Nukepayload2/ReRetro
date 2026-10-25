@@ -64,7 +64,7 @@ node scripts/rea-fc.mjs verify [--live] [--breakpoint] [--rom <rom-path>] [--loa
 
 `--live` 追加一次实时探测：`get_rom_info`、`debugger_status`，在已载入 ROM 且有内存区时再做一次 `get_memory_range` 实际读取。`--rom` 把 `get_rom_info.rom_path` 与给定路径规范化比较；加 `--load` 时，若本次工具面带 `load_rom`，先让它载入再比对，否则按界面载入处理。
 
-`--breakpoint` 追加 `breakpoint-probe`：在 NES 栈页 `$01F0-$01FF` 设写断点、推进一帧、要求 `run_frames` 报 `stopped_by_breakpoint` 且 `get_debug_events` 出现 `Breakpoint` 事件，最后清空断点并恢复执行。它替换整个断点列表，所以不在 `--live` 里默认开启；只对 NES 生效，其他机型判为降级。
+`--breakpoint` 追加 `breakpoint-probe`：在 NES 栈页 `$01F0-$01FF` 设写断点、推进最多 60 帧，要求 `run_frames` 报 `stopped_by_breakpoint`/`break_source: Breakpoint`/`breakpoint_id: 0` 与停止地址，`get_debug_events` 能给出非空历史，最后清空断点并恢复执行。它替换整个断点列表，所以不在 `--live` 里默认开启；只对 NES 生效，其他机型判为降级。开了预测型断点时命中可能先于访问发生，因此该门不要求出现 `Breakpoint` 事件。
 
 ## `emulator`
 

@@ -1,0 +1,166 @@
+# 安装与环境就绪
+
+本文覆盖两件事：把两个工具仓构建/定位好，再把 `third_party/MesenGM` 的 MCP 调试桥接入 AI 客户端并核验工具面真的可用。本步失败时没有动态取证能力，后续结论只能标「推测」或「猜测」。
+
+工作流本身见 [workflow](workflow.md)；命令细节见 [cli](cli.md)。
+
+## 先决条件
+
+| 项 | 要求 | 说明 |
+|----|------|------|
+| 操作系统 | Windows 10/11 x64 | Mesen 的 MCP 桥只在 Windows 构建中提供；SourceGen 是 WPF 程序 |
+| Node.js | `>=22.19`（`node --version`） | 只跑脚本，零第三方依赖 |
+| Git | 支持 submodule | `git clone --recursive` 取工具仓 |
+| 构建工具（从源码构建时） | Visual Studio 2022/2026，含 C++ 桌面工作负载、.NET 10 SDK、.NET Framework 4.8.1 targeting pack | Mesen 的 UI 工程目标 `net10.0`；SourceGen 目标 `v4.8.1` |
+| 已有安装（跳过构建时） | 任一份 `MCPServer.exe` + `Mesen.exe`（MesenGM 构建产物），任一份 `SourceGen.exe` | 用 `--mesen-dir`、`--bench-dir` 或环境变量指过去，并配合 `--skip-build` |
+
+不构建也可以工作：`setup.mjs` 支持 `--skip-build`。构建产物只落在 submodule 自己的 `bin/` 下，本仓库不提交二进制。
+
+## 取仓库
+
+```powershell
+git clone --recursive <repo-url> rea-fc
+cd rea-fc
+```
+
+已经 clone 但工具目录为空时补一次：
+
+```powershell
+git submodule update --init --recursive
+```
+
+`third_party/pins.json` 记录两个 submodule 的 pin；`node scripts/check-docs.mjs` 会核对 `.gitmodules`、`pins.json` 与 gitlink 三者是否一致。
+
+### 拿到的是源码目录（还没有 git 元数据）
+
+如果手里只有文件、没有 `.git` 与 `.gitmodules`，先建立仓库并补上两个 submodule，再把 pin 对齐：
+
+```powershell
+git init -b main
+git submodule add https://github.com/Hoshiruna/MesenGM.git third_party/MesenGM
+git submodule add https://github.com/fadden/6502bench.git third_party/6502bench
+git -C third_party/MesenGM checkout 481f4599b7ad9f8db769556f875930a40a307834
+git -C third_party/6502bench checkout f43f3761fd63cef7fe2e2e71fb2b58fec0c4a73e
+git add -A
+git commit -m "feat: standalone NES reversing kit with pinned tool submodules"
+```
+
+上面的提交号以 `third_party/pins.json` 为准；`git submodule add` 取的是上游默认分支当前 tip，pin 不一致时按 `pins.json` 检出后再 `git add` 两个 submodule 路径。完成后 `node scripts/check-docs.mjs` 应报告 0 违规。
+
+## 第一步：构建或定位工具
+
+```powershell
+node scripts/setup.mjs
+```
+
+它按顺序做这些事：
+
+1. 检查 Node 版本、MSBuild、dotnet、.NET Framework 4.8.1 targeting pack。
+2. 核对 submodule 是否已检出、是否在 pin 上。
+3. 定位两个工具；submodule 里还没有构建产物时，用 `dotnet restore` + MSBuild 从源码构建：
+   - `Mesen.sln`：`Release|x64`，产物 `third_party/MesenGM/bin/win-x64/Release/`（`Mesen.exe`、`MCPServer.exe`）；
+   - `WorkBench.sln`：`Release|Any CPU`，产物 `third_party/6502bench/SourceGen/bin/Release/SourceGen.exe`。
+4. 把客户端注册条目写进 `out/`（该目录被 git 忽略）：定位到桥时写 `out/mcp.json`、`out/mcp.http.json`、`out/client-setup.md`；`out/environment.json` 每次都写，内含本次检测结果。
+
+常用参数：
+
+| 参数 | 作用 |
+|------|------|
+| `--mesen-dir <dir>` | 指定运行用的 `MCPServer.exe` 所在目录（不阻止构建；要跳过构建加 `--skip-build`） |
+| `--bench-dir <dir>` | 指定 `SourceGen.exe` 所在目录，语义同上 |
+| `--skip-build` | 只做检测与配置生成，不构建 |
+| `--dry-run` | 只打印将要执行的命令 |
+| `--json` | 机器可读输出 |
+
+环境变量 `REA_FC_MESEN_DIR`、`REA_FC_BENCH_DIR` 与对应参数等价，适合写进本机的 shell 配置。
+
+退出码：`0` 桥已就位；`2` 桥缺失；`1` 检查本身失败。构建失败但桥已存在时仍是 `0`，此时看输出里的 `Builds` 段判断降级项。
+
+## 第二步：选择传输方式
+
+| 方式 | 谁来拉起 | 端点 / 命令 | 适用 |
+|------|---------|------------|------|
+| Streamable HTTP | Mesen 内手动启动（Debug > MCP Server > Start） | `http://127.0.0.1:<port>/mcp/`，默认端口 `51234` | 客户端支持 URL 型 MCP；Mesen 显示启动状态与日志 |
+| stdio | MCP 客户端 | `<mesen-install-dir>\MCPServer.exe --stdio` | 客户端能自行拉起子进程；Mesen 重启后桥可重连 |
+
+两种方式都由 `MCPServer.exe` 翻译到同一条命名管道，客户端看到的工具面相同。
+
+## 第三步：在客户端注册
+
+`out/client-setup.md` 里有按客户端分开的注册命令；`out/mcp.json` 是通用的 `mcpServers` 形态。以通用 JSON 为例：
+
+```json
+{
+  "mcpServers": {
+    "mesen-debugger": {
+      "type": "stdio",
+      "command": "<mesen-install-dir>\\MCPServer.exe",
+      "args": ["--stdio"]
+    }
+  }
+}
+```
+
+- Windows 路径在 JSON 里用双反斜杠；含空格的路径不需要额外引号，数组元素即为完整参数。
+- 走 HTTP 时改用 URL 型条目，指向实际端口，例如 `http://127.0.0.1:51234/mcp/`。
+- 可执行文件位置以实际安装为准；submodule 的构建产物在 `third_party/MesenGM/bin/win-x64/Release/MCPServer.exe`，但它不一定是用户正在跑的模拟器那份。
+- 改动 JSON 后先做一次解析校验（例如把文件读成 JSON 对象），语法错会让整份配置失效，表现为所有 MCP server 一起消失。
+
+## 第四步：核验生效
+
+注册成功不等于已生效。核验顺序有一个前提：桥的工具清单由 Mesen 在启动时写进本机缓存，桥在没有 Mesen 的情况下靠这份缓存离线应答 `tools/list`。因此**第一次**核验的顺序是：
+
+1. 打开 Mesen（可以只到主界面），让缓存生成；
+2. `node scripts/verify.mjs`。
+
+之后只要缓存还在，桥就能在 Mesen 未运行时回答工具列表。
+
+```powershell
+node scripts/verify.mjs          # submodule pin + 桥 + 工具面
+node scripts/verify.mjs --live   # 追加 Mesen 实时探测
+node scripts/verify.mjs --rom <rom-path> --live   # 追加「载入的是不是这个 ROM」
+```
+
+`verify.mjs` 通过文件型 stdio 与桥通信（同一份换行分隔 JSON-RPC，只是把管道换成临时文件），因此在禁止命名管道的受限环境里也能用。它按顺序确认：
+
+| 检查项 | 期望结果 | 不满足说明 |
+|--------|---------|-----------|
+| 工具列表 | 出现该连接名下的工具（pinned 版本共 16 个：`debugger_status`、`get_rom_info`、`get_cpu_state`、`get_ppu_state`、`get_screen`、`get_memory_range`、`search_memory`、`set_memory`、`get_disassembly`、`get_trace_tail`、`get_debug_events`、`set_breakpoints`、`step`、`resume`、`pause`、`save_rom`） | 报「Mesen is not running」是缓存还没生成：先打开一次 Mesen；其余情况检查客户端是否加载了新配置 |
+| `get_rom_info` | `rom_path` 是目标 ROM，`format` 不是 `Unknown` | 桥通了但没载入 ROM，或载入了别的 ROM |
+| `get_rom_info` 的 `memory_types` | 含 `NesPrgRom`、`NesInternalRam` 等区域及其 ID 与大小 | 不要凭记忆填内存区 ID，一律取自本次返回 |
+| `debugger_status` | `debugger_running`、`emulation_running`、`execution_stopped` 可解释 | 握手成功不代表 ROM 在跑 |
+| 一次实际内存读 | `get_memory_range` 能读到已知字节 | 只有状态接口通、内存接口不通时，不能作为取证依据 |
+
+`--rom` 只做比对：它把 `get_rom_info.rom_path` 与给定路径规范化后比较，不改变模拟器状态。载入 ROM 用 Mesen 界面，桥的 pinned 版本没有载入工具。
+
+核验通过后，把本次的 `memory_types`（名称、ID、大小）记进工作台账；换 ROM 或换 Mesen 会话后必须重新核验。同时记下哪些接口在本版本可用：断点能设但事件/轨迹计数恒为 0 时，后续取证要直接走帧轮询，不要在会话里反复重试同一个接口。
+
+本机若用了自己构建的 Mesen（开发版可能多出工具），工具面会比 pin 多；以本次 `tools/list` 返回为准，不要把额外工具当成仓库保证。
+
+## 载入目标 ROM
+
+- 在 Mesen 界面里打开 ROM；套补丁同样在界面里选 IPS/UPS/BPS，目录里的补丁不会自动应用。
+- 载入后重新 `get_rom_info`，确认 `rom_path` 与格式符合预期。
+- 载入会替换当前 ROM。同一个 Mesen 实例、同一条命名管道上的调试状态是共享的：换 ROM、换断点列表会影响同时连着的其他客户端。动手前确认没有别人在用。
+- 需要从模拟器导出一份改动后的 ROM 或 IPS 时用 `save_rom`；它不是存档工具，存档与读档用 Mesen 界面自己做 A/B。
+
+## 常见故障
+
+| 症状 | 处理 |
+|------|------|
+| `setup.mjs` 报 submodule 缺失 | `git submodule update --init --recursive`，再重跑 |
+| 构建 Mesen 失败 | 确认 VS 装了 C++ 桌面工作负载与 .NET 10 SDK；先单独打开 `Mesen.sln` 用 `Release|x64` 构建，看第一条真实错误 |
+| 构建 SourceGen 失败 | 确认装了 .NET Framework 4.8.1 targeting pack；报 `NETSDK1004` 是缺少 restore 资产，`setup.mjs` 已执行 `dotnet restore WorkBench.sln`，手工构建时也要先 restore |
+| `tools/list` 报 Mesen is not running | 打开一次 Mesen 生成工具缓存，再重跑核验；不需要重建桥 |
+| 工具调用报 Mesen 未运行 | 打开 Mesen 并载入 ROM；桥不用重启 |
+| 工具调用超时 | Mesen 停在自己的调试器或弹了模态窗口；先恢复执行、关对话框。服务端超时上限查 `third_party/MesenGM` |
+| 报「No ROM is loaded」 | 在 Mesen UI 里打开游戏 |
+| 工具缺失或多余 | pinned 版本是 16 个工具；缺工具说明连的是旧二进制，多工具说明连的是更新/本地构建。以本次返回为准 |
+| HTTP 启动失败 | 端口被占用，在 Debug > MCP Server 里换端口，并同步改客户端 URL |
+| 工具能调但整段反汇编是 `unidentified` | 不是注册问题，是反汇编分析缓存缺该段；按 [workflow](workflow.md) 的工具基线处理，不要转去手写反汇编器 |
+| 工具行为与源码不一致 | 会话连的是旧进程或旧二进制；重新构建目标、重启 Mesen 与客户端，再重走核验 |
+| 连上了却读不到目标 ROM 的数据 | 可能同时连着别的客户端并切换过 ROM；重新 `get_rom_info` 确认当前 ROM |
+
+## 完成后
+
+环境就绪只是入口：基线固化、断点或帧轮询取证、补丁与冷启动验收仍在 [workflow](workflow.md) 里。核验失败的项写进交付的「未决」，不要用静态推测填补。

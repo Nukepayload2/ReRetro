@@ -1,0 +1,97 @@
+---
+name: nes-rom-reversing
+description: NES/6502 ROM reversing and permanent patches through the MesenGM MCP debugger and the 6502bench SourceGen workbench. Use for finding the code that owns a state value, proving it with breakpoints or frame polling, writing a minimal ROM hook or a Game Genie code, and validating with a cold start. Not for developing the emulator, the bridge, or the disassembler.
+metadata:
+  version: "1"
+---
+
+# NES/6502 ROM 逆向
+
+规则全文在 `docs/workflow.md`；工具参数查 `third_party/MesenGM/MCP_SERVER.md` 与 `third_party/MesenGM/MCPServer/skills/mesengm-mcp/references/tool-details.md`；静态分析查 `third_party/6502bench/docs/sgmanual/`。本文件是作业单，不替代规则。
+
+## 输入
+
+- 目标 ROM 与期望效果（可观察、可验收的行为或数值）。
+- 可复现的进入路径（标题、菜单、关卡）。
+- 可用的反汇编工程或符号表；没有则先用 SourceGen 建。
+
+## 产出
+
+- 最小化永久补丁 ROM，或带校验值的 Game Genie 码。
+- 原 ROM / 补丁 ROM 的 SHA256、文件偏移、CPU 地址、原字节、新字节。
+- 冷启动验证记录（写入点、写入值、重复次数、回归项）。
+- 回滚说明与未决风险，逐条标注 `实锤` / `推测` / `猜测`。
+
+## 0. 先过环境门
+
+```powershell
+node scripts/verify.mjs
+```
+
+- 只有 `bridge-handshake` 通过，才允许做动态取证；通过只证明工具面可达，不证明目标 ROM 已载入。
+- 工具清单要 Mesen 至少启动一次才有缓存；报「Mesen is not running」时先打开 Mesen，再重跑核验。
+- 要证明「载入的是目标 ROM」，用 `node scripts/verify.mjs --live --rom <rom>`；`--rom` 只比对 `rom_path`。
+- 门没过时不进入 ROM 分析，也不要用自制脚本顶替缺失的工具。结论上限：推测。
+
+## 1. 固定基线
+
+```powershell
+node scripts/rea-fc.mjs info <rom>
+```
+
+记录 PRG/CHR 大小、mapper、镜像方式、SHA256、文件大小；复制到只读基线；补丁一律写到新文件。把目标改写成含变量、写入点、值、观测方式的可验收断言，不写「效果变强」。
+
+## 2. 静态定位（SourceGen）
+
+- 在 SourceGen 里建可复现工程（CPU 选型、入口点、分析范围），不手工拼反汇编。
+- 给目标 bank 的例程、数据表、RAM 变量建符号，符号名要能直接用于断点与补丁脚本。
+- 用交叉引用视图找出所有读取者、写入者、初始化者、每帧更新者。
+- 导出汇编做字节环回：装配结果与原 PRG 逐字节一致，否则边界划分有误。
+- 位置分三类：初始化写入（影响开局）、每帧写入（影响移动/碰撞/AI）、目标动作瞬间写入（钩子最佳落点）。
+
+## 3. 动态取证（Mesen 调试桥）
+
+- `get_rom_info` 取 `memory_types`，不要凭记忆填内存区 ID；PRG ROM 与内部 RAM 分开用。
+- 在目标变量上设写断点，记录命中时的 `PC`、`A/X/Y`、旧值与新值。断点列表是整体替换，设置前先确认当前列表。
+- 在候选例程设执行断点，确认实际走的分支，而不是只看最终画面。
+- 断点或轨迹不工作时不要停等修复：逐帧推进、读关键变量，按「值变化的那一帧」定位，交付里注明这是轮询证据。
+- 解释 `$8000-$BFFF` 前先确认当前 bank：取足够长的字节串与各 PRG bank 比对，再换算 bank 内偏移。
+- 直接改 PRG 内存只对当前进程有效；A/B 之前重新写入并读回。
+
+## 4. 选形态
+
+风险从低到高：窄路径代码钩子 → 独占数据表修改 → 全局表/读取覆盖。永久交付优先 ROM 补丁；金手指适合探索，但可切换区的码必须带校验值，且先确认该偏移在各 bank 唯一。
+
+## 5. 生成补丁
+
+```powershell
+node scripts/rea-fc.mjs patch --rom <rom> --out <patched> --edit <offset>:<old>:<new>:<note> --ips <file>
+```
+
+脚本会断言原字节、写入、读回、给出前后 SHA256，并拒绝覆盖原 ROM。钩子自身要满足：`JMP` 落在指令边界、代码洞同 bank 且连续 `FF`、保留被替换指令语义、分支偏移重算、跳回原指令的下一条、栈平衡。
+
+金手指：
+
+```powershell
+node scripts/rea-fc.mjs cheat check --rom <rom> --address <cpu-address>
+node scripts/rea-fc.mjs cheat encode --address <cpu> --value <v> --compare <c>
+```
+
+## 6. 冷启动验收
+
+完全重置 → 从标题手动进入 → 测未触发效果的基础行为 → 触发目标动作并核对写入点 → 核对下游效果 → 跑对照组（补丁关掉、同输入同帧数）→ 重复 10 次记命中率 → 回归 CPU/AI、关卡进出、菜单 → 再做一次完整冷启动。
+
+只有走完这些，结论才能标 `实锤`。
+
+## 7. 交付
+
+给出原/补丁 ROM 路径与 SHA256、修改表（文件偏移/CPU 地址/原字节/新字节/作用）、写入点与写入值、重复次数、回归结果、回滚方式、未决风险。只交付金手指时给出码、解码结果、逐 bank 原始字节、双读结果、重载步骤、对照组结果。
+
+## 硬性禁止
+
+不覆盖原 ROM；不用即时存档单独证明有效；不把 CPU 地址当文件偏移；不在可切换区用无校验码；不对实体状态做全局读取覆盖；不拆断点未检查的共享表；不把屏幕效果当状态证据；不隐藏未验证项；不在工具未就绪时用自制脚本凑证据。
+
+## 参考
+
+- `references/mesen-tool-surface.md` — pinned 版本的 16 个工具、界面侧动作与危险动作
+- `references/patch-and-cheats.md` — 补丁/金手指检查表与脚本字段

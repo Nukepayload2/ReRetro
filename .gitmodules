@@ -1,0 +1,6 @@
+[submodule "third_party/6502bench"]
+	path = third_party/6502bench
+	url = https://github.com/fadden/6502bench.git
+[submodule "third_party/MesenGM"]
+	path = third_party/MesenGM
+	url = https://github.com/Hoshiruna/MesenGM.git

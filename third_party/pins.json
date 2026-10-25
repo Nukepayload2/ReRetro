@@ -1,0 +1,17 @@
+{
+  "note": "Mirror of the gitlinks recorded by this repository. The gitlink commit in the superproject is authoritative; this file lets verification work in a plain source archive and makes the pinned tool versions readable in docs.",
+  "submodules": [
+    {
+      "path": "third_party/MesenGM",
+      "url": "https://github.com/Hoshiruna/MesenGM.git",
+      "commit": "481f4599b7ad9f8db769556f875930a40a307834",
+      "role": "dynamic side: emulator plus the MCP debugger bridge (MCPServer.exe)"
+    },
+    {
+      "path": "third_party/6502bench",
+      "url": "https://github.com/fadden/6502bench.git",
+      "commit": "f43f3761fd63cef7fe2e2e71fb2b58fec0c4a73e",
+      "role": "static side: SourceGen disassembly workbench"
+    }
+  ]
+}

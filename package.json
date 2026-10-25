@@ -1,0 +1,44 @@
+{
+  "name": "rea-fc",
+  "version": "0.1.0",
+  "description": "Standalone NES/6502 reversing kit: a workflow, a CLI, and MesenGM plus 6502bench pinned as submodules.",
+  "license": "GPL-3.0-only",
+  "private": true,
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Hoshiruna/rea-fc.git"
+  },
+  "keywords": [
+    "nes",
+    "6502",
+    "reverse-engineering",
+    "mesen",
+    "sourcegen",
+    "rom-hacking",
+    "agent-skills"
+  ],
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "bin": {
+    "rea-fc": "scripts/rea-fc.mjs"
+  },
+  "files": [
+    "scripts",
+    "docs",
+    ".agents/skills",
+    "third_party/pins.json",
+    "README.md",
+    "AGENTS.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "scripts": {
+    "rea-fc": "node scripts/rea-fc.mjs",
+    "setup": "node scripts/setup.mjs",
+    "verify": "node scripts/verify.mjs",
+    "check": "node scripts/check-docs.mjs",
+    "test": "node --test tests/"
+  }
+}

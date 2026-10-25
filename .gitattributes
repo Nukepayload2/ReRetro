@@ -1,0 +1,10 @@
+# Keep text checkouts identical on every platform; the tooling is UTF-8.
+* text=auto eol=lf
+
+# Windows batch and PowerShell entry points keep their native line endings.
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Submodules are fetched by git, never shipped inside this repository's archive.
+/third_party/MesenGM export-ignore
+/third_party/6502bench export-ignore

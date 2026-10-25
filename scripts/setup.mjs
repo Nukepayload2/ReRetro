@@ -1,0 +1,278 @@
+#!/usr/bin/env node
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { heading, parseArgs, rows, status } from './lib/cli.mjs';
+import { checkNodeVersion, paths, readPins, relativePath } from './lib/config.mjs';
+import { buildCommands, buildTarget, detectBuildTools, locateTools, submoduleState } from './lib/tools.mjs';
+
+const args = parseArgs(process.argv.slice(2));
+const dryRun = args.flag('dry-run');
+const skipBuild = args.flag('skip-build');
+const json = args.flag('json');
+
+const report = {
+  node: checkNodeVersion(),
+  submodules: null,
+  buildTools: null,
+  tools: null,
+  builds: [],
+  outputs: {},
+  nextSteps: [],
+  exitCode: 0,
+};
+
+main();
+
+function main() {
+  try {
+    report.submodules = stepSubmodules();
+    report.buildTools = detectBuildTools();
+    report.tools = locateTools({
+      mesenDir: args.get('mesen-dir'),
+      benchDir: args.get('bench-dir'),
+    });
+
+    if (!skipBuild) {
+      buildMissingTools();
+      report.tools = locateTools({ mesenDir: args.get('mesen-dir'), benchDir: args.get('bench-dir') });
+    }
+
+    writeOutputs();
+    report.exitCode = report.tools.mesen.bridge ? 0 : 2;
+    emit();
+    process.exit(report.exitCode);
+  } catch (error) {
+    if (json) {
+      console.log(JSON.stringify({ ok: false, error: error.message, stack: error.stack }, null, 2));
+    } else {
+      status('fail', 'setup failed', error.message);
+    }
+    process.exit(1);
+  }
+}
+
+function stepSubmodules() {
+  const state = submoduleState();
+  const pins = readPins();
+  const missing = pins.submodules.filter((pin) => !existsSync(join(paths.root, pin.path)));
+  const rowsOut = pins.submodules.map((pin) => {
+    const row = state.rows.find(candidate => candidate.path.replace(/\\/g, '/') === pin.path);
+    return {
+      path: pin.path,
+      pinned: pin.commit.slice(0, 12),
+      actual: row?.commit?.slice(0, 12) ?? null,
+      state: row?.state ?? (existsSync(join(paths.root, pin.path)) ? 'present' : 'missing'),
+    };
+  });
+  return { source: state.source, rows: rowsOut, missing: missing.map(pin => pin.path) };
+}
+
+function buildMissingTools() {
+  const targets = buildCommands(report.buildTools);
+
+  for (const target of targets) {
+    const alreadyBuilt = target.outputs.every(output => existsSync(output));
+    if (alreadyBuilt) {
+      report.builds.push({ name: target.name, skipped: true, reason: 'outputs already present', outputs: target.outputs });
+      continue;
+    }
+    if (!target.requires()) {
+      report.builds.push({ name: target.name, skipped: true, reason: target.missingRequirement });
+      continue;
+    }
+    if (dryRun) {
+      report.builds.push({
+        name: target.name,
+        skipped: true,
+        reason: 'dry run',
+        command: target.steps.map(step => [step.command, ...step.args].join(' ')).join(' && '),
+        cwd: relativePath(target.cwd),
+      });
+      continue;
+    }
+    report.builds.push({
+      name: target.name,
+      started: true,
+      command: target.steps.map(step => [step.command, ...step.args].join(' ')).join(' && '),
+      cwd: relativePath(target.cwd),
+    });
+    const result = buildTarget(target);
+    report.builds[report.builds.length - 1] = { name: target.name, ...result, cwd: relativePath(target.cwd) };
+  }
+}
+
+function writeOutputs() {
+  if (dryRun) {
+    return;
+  }
+  mkdirSync(paths.out, { recursive: true });
+
+  const bridge = report.tools.mesen.bridge;
+  const emulator = report.tools.mesen.emulator;
+
+  if (bridge) {
+    const stdioConfig = {
+      mcpServers: {
+        'mesen-debugger': {
+          type: 'stdio',
+          command: bridge,
+          args: ['--stdio'],
+        },
+      },
+    };
+    writeFileSync(paths.mcpConfig, JSON.stringify(stdioConfig, null, 2) + '\n', 'utf8');
+    writeFileSync(join(paths.out, 'mcp.http.json'), JSON.stringify({
+      mcpServers: {
+        'mesen-debugger': {
+          type: 'http',
+          url: 'http://127.0.0.1:51234/mcp/',
+        },
+      },
+    }, null, 2) + '\n', 'utf8');
+    writeFileSync(join(paths.out, 'client-setup.md'), clientSetup(bridge, emulator), 'utf8');
+  }
+
+  const environment = {
+    generatedBy: 'scripts/setup.mjs',
+    node: report.node,
+    submodules: report.submodules,
+    buildTools: report.buildTools,
+    tools: report.tools,
+    paths: {
+      mcpConfig: relativePath(paths.mcpConfig),
+      clientSetup: 'out/client-setup.md',
+      httpConfig: 'out/mcp.http.json',
+    },
+  };
+  writeFileSync(paths.envFile, JSON.stringify(environment, null, 2) + '\n', 'utf8');
+
+  report.outputs = {
+    mcpConfig: relativePath(paths.mcpConfig),
+    clientSetup: 'out/client-setup.md',
+    httpConfig: 'out/mcp.http.json',
+    envFile: relativePath(paths.envFile),
+  };
+}
+
+function clientSetup(bridge, emulator) {
+  const escaped = bridge.replace(/\\/g, '\\\\');
+  return `# Register the Mesen debugger bridge
+
+Generated by \`node scripts/setup.mjs\`. The paths below belong to this machine;
+\`out/\` is ignored by git.
+
+## Claude Code (PowerShell)
+
+\`\`\`powershell
+$config = @{ type = "stdio"; command = "${bridge}"; args = @("--stdio") }
+claude mcp add-json mesen-debugger ($config | ConvertTo-Json -Compress)
+\`\`\`
+
+## Codex CLI
+
+\`\`\`powershell
+codex mcp add mesen-debugger -- "${bridge}" --stdio
+\`\`\`
+
+## Generic \`mcpServers\` JSON
+
+\`\`\`json
+{
+  "mcpServers": {
+    "mesen-debugger": {
+      "type": "stdio",
+      "command": "${escaped}",
+      "args": ["--stdio"]
+    }
+  }
+}
+\`\`\`
+
+## HTTP transport instead of stdio
+
+Start \`Debug > MCP Server > Start\` in ${emulator ?? 'Mesen'} and register
+\`http://127.0.0.1:51234/mcp/\` instead. Use \`out/mcp.http.json\` as the template.
+The HTTP listener binds to loopback only.
+
+## Verify
+
+\`\`\`powershell
+node scripts/verify.mjs
+\`\`\`
+
+Verification proves the bridge answers \`initialize\` and \`tools/list\`. Tool calls
+that need a running emulator keep failing until Mesen has a ROM loaded.
+`;
+}
+
+function emit() {
+  if (json) {
+    console.log(JSON.stringify(report, null, 2));
+    return;
+  }
+
+  heading('Environment');
+  status(report.node.ok ? 'ok' : 'fail', `Node ${report.node.version}`, report.node.ok ? `satisfies ${report.node.required}` : `requires ${report.node.required}`);
+  status(report.buildTools.msbuild ? 'ok' : 'warn', 'MSBuild', report.buildTools.msbuild ?? 'not found (needed to build from source)');
+  status(report.buildTools.dotnet.available ? 'ok' : 'warn', 'dotnet', report.buildTools.dotnet.version || 'not found');
+  status(report.buildTools.netFramework481 ? 'ok' : 'warn', '.NET Framework 4.8.1 targeting pack', report.buildTools.netFramework481 ? 'present' : 'missing (SourceGen build)');
+
+  heading('Submodules');
+  for (const row of report.submodules.rows) {
+    const kind = row.state === 'initialized' || row.state === 'present' ? 'ok' : row.state === 'different-commit' ? 'warn' : 'fail';
+    status(kind, row.path, `pinned ${row.pinned}${row.actual ? ` / checkout ${row.actual}` : ''} (${row.state})`);
+  }
+  if (report.submodules.missing.length > 0) {
+    status('warn', 'submodules not initialized', 'run: git submodule update --init --recursive');
+  }
+
+  heading('Builds');
+  if (report.builds.length === 0) {
+    status('info', 'no builds requested');
+  }
+  for (const build of report.builds) {
+    if (build.skipped) {
+      status(build.reason === 'outputs already present' ? 'ok' : 'info', build.name, build.reason);
+    } else {
+      status(build.ok ? 'ok' : 'fail', build.name, build.ok ? 'built' : `exit ${build.status}${build.timedOut ? ' (timeout)' : ''}`);
+      if (!build.ok) {
+        console.log(indent(build.stderrTail || build.stdoutTail || ''));
+      }
+    }
+  }
+
+  heading('Tools');
+  rows([
+    ['MesenGM bridge', describeTool(report.tools.mesen.bridge, report.tools.mesen.source)],
+    ['Mesen.exe', describeTool(report.tools.mesen.emulator, report.tools.mesen.source)],
+    ['SourceGen', describeTool(report.tools.bench.exe, report.tools.bench.source)],
+  ]);
+
+  if (Object.keys(report.outputs).length > 0) {
+    heading('Generated');
+    rows(Object.entries(report.outputs));
+  }
+
+  heading('Next');
+  if (!report.tools.mesen.bridge) {
+    status('warn', 'bridge missing', 'install Visual Studio C++ build tools, then rerun without --skip-build');
+  }
+  status('info', 'register the bridge', 'copy the entry from out/client-setup.md into your MCP client');
+  status('info', 'check the tool surface', 'node scripts/verify.mjs' + (report.tools.mesen.bridge ? '' : ' (after the bridge exists)'));
+  status('info', 'workflow', 'docs/workflow.md');
+}
+
+function describeTool(path, source) {
+  if (!path) {
+    return 'not found';
+  }
+  return `${relativePath(path)} (${source})`;
+}
+
+function indent(text) {
+  return text
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map(line => `    ${line}`)
+    .join('\n');
+}

@@ -1,0 +1,25 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify submodule checkouts
+        run: git submodule status --recursive
+      - name: Repository self-check
+        run: node scripts/check-docs.mjs
+      - name: Unit and end-to-end tests
+        run: node --test tests/

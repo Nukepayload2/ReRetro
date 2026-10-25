@@ -66,6 +66,7 @@ if (json) {
     status(write ? 'ok' : 'warn', write ? 'pins.json updated' : 'pins.json is behind the checkouts',
       write ? relativePath(paths.pins) : 'rerun with --write to record the new commits');
   }
+  status('info', 'stage the gitlinks', `git add ${rowsOut.filter(row => !row.matches).map(row => row.path).join(' ') || 'third_party'}`);
   status('info', 'after changing a pin', 'rebuild the tool, then run node scripts/verify.mjs');
 }
 

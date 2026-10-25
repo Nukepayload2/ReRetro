@@ -29,11 +29,13 @@ pin 的 MesenGM 提交注册 16 个核心工具；更新的构建另带 7 个可
 git -C third_party/MesenGM fetch
 git -C third_party/MesenGM checkout <new-commit>
 node scripts/rea-fc.mjs pins --write
+git add third_party/MesenGM
+git commit -m "chore: bump MesenGM pin"
 node scripts/setup.mjs
 node scripts/verify.mjs
 ```
 
-`pins --write` 只改 pin 记录，不改代码。新提交若改变工具集合，同步更新上面两个常量与 `docs/`、skill 里的工具表。
+`pins --write` 只改 `pins.json`；superproject 的 gitlink 要单独 `git add` 才会跟着移动，否则 `check-docs` 会报两者不一致。新提交若改变工具集合，同步更新上面两个常量与 `docs/`、skill 里的工具表。
 
 ## 更新策略
 
@@ -42,6 +44,8 @@ pin 指向两个上游的 `master` 分支提交，升级是显式动作，不是
 ```powershell
 git submodule update --remote third_party/MesenGM third_party/6502bench
 node scripts/rea-fc.mjs pins --write
+git add third_party/MesenGM third_party/6502bench
+git commit -m "chore: bump tool submodules"
 node scripts/setup.mjs
 node scripts/verify.mjs
 node scripts/rea-fc.mjs test

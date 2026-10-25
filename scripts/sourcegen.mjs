@@ -34,6 +34,7 @@ const romPath = args.get('rom');
 const dataPath = args.get('data');
 const writesOnly = args.flag('writes-only');
 const allBanks = args.flag('all-banks');
+const entries = args.all('entry').map(value => Number.parseInt(String(value), 0)).filter(Number.isInteger);
 const count = Number.parseInt(args.get('count', '32'), 10);
 
 const driver = locateDriver();
@@ -55,12 +56,23 @@ process.exit(result.ok ? 0 : 1);
 
 function run() {
   switch (command) {
-    case 'stats': return forEachBank(bank => driverCall('stats', bank));
-    case 'build': return forEachBank(bank => driverCall('build', bank));
+    // Without --prg-bank these walk every bank; naming one bank narrows them to it.
+    case 'stats': return forEachBank(bank => driverCall('stats', bank), { only: selectedBank() });
+    case 'build': return forEachBank(bank => driverCall('build', bank), { only: selectedBank() });
     case 'line': return forEachBank(bank => driverCall('line', bank, { address: requiredAddress() }), { only: bankFromArgs() });
     case 'xref': return xref();
     default: fail(`unknown command: ${command}`);
   }
+}
+
+/**
+ * The bank a whole-bank command should report on, or undefined for all of them.
+ *
+ * `--prg-bank` has to win over the default "walk everything", otherwise asking for one
+ * bank silently prints sixteen.
+ */
+function selectedBank() {
+  return args.get('prg-bank') === undefined || allBanks ? undefined : bankFromArgs();
 }
 
 function xref() {
@@ -112,6 +124,10 @@ function driverCall(name, bank, extra = {}) {
   }
   if (name === 'line') {
     argv.push('--address', `0x${extra.address.toString(16)}`, '--count', String(count));
+  }
+  // Seeding entry points is what raises coverage when the seeded vectors miss a routine.
+  for (const entry of entries) {
+    argv.push('--entry', `0x${entry.toString(16)}`);
   }
   if (name === 'build' && args.get('save-project')) {
     const project = args.get('save-project');

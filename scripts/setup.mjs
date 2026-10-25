@@ -8,6 +8,7 @@ import { buildCommands, buildTarget, detectBuildTools, locateTools, submoduleSta
 const args = parseArgs(process.argv.slice(2));
 const dryRun = args.flag('dry-run');
 const skipBuild = args.flag('skip-build');
+const rebuild = args.flag('rebuild');
 const json = args.flag('json');
 
 const report = {
@@ -38,7 +39,16 @@ function main() {
     }
 
     writeOutputs();
-    report.exitCode = report.tools.mesen.bridge ? 0 : 2;
+    const buildFailed = report.builds.some(build => !build.skipped && !build.ok);
+    if (!report.tools.mesen.bridge) {
+      report.exitCode = 2;
+    } else if (buildFailed) {
+      //A failed build leaves the previous binaries in place, so a present tool is not proof
+      //that the sources under third_party were built.
+      report.exitCode = 1;
+    } else {
+      report.exitCode = 0;
+    }
     emit();
     process.exit(report.exitCode);
   } catch (error) {
@@ -61,6 +71,7 @@ function stepSubmodules() {
       path: pin.path,
       pinned: pin.commit.slice(0, 12),
       actual: row?.commit?.slice(0, 12) ?? null,
+      dirty: row?.dirty ?? 0,
       state: row?.state ?? (existsSync(join(paths.root, pin.path)) ? 'present' : 'missing'),
     };
   });
@@ -72,7 +83,7 @@ function buildMissingTools() {
 
   for (const target of targets) {
     const alreadyBuilt = target.outputs.every(output => existsSync(output));
-    if (alreadyBuilt) {
+    if (alreadyBuilt && !rebuild) {
       report.builds.push({ name: target.name, skipped: true, reason: 'outputs already present', outputs: target.outputs });
       continue;
     }
@@ -232,8 +243,8 @@ function emit() {
 
   heading('Submodules');
   for (const row of report.submodules.rows) {
-    const kind = row.state === 'initialized' || row.state === 'present' ? 'ok' : row.state === 'different-commit' ? 'warn' : 'fail';
-    status(kind, row.path, `pinned ${row.pinned}${row.actual ? ` / checkout ${row.actual}` : ''} (${row.state})`);
+    const kind = row.state === 'initialized' || row.state === 'present' ? 'ok' : row.state === 'modified' ? 'warn' : row.state === 'different-commit' ? 'warn' : 'fail';
+    status(kind, row.path, `pinned ${row.pinned}${row.actual ? ` / checkout ${row.actual}` : ''} (${row.state}${row.dirty ? `, ${row.dirty} local change(s)` : ''})`);
   }
   if (report.submodules.missing.length > 0) {
     status('warn', 'submodules not initialized', 'run: git submodule update --init --recursive');
@@ -267,6 +278,9 @@ function emit() {
   }
 
   heading('Next');
+  if (report.builds.some(build => !build.skipped && !build.ok)) {
+    status('fail', 'build failed', 'the binaries on disk are the previous ones; fix the error and rerun with --rebuild');
+  }
   if (!report.tools.mesen.bridge) {
     status('warn', 'bridge missing', 'install Visual Studio C++ build tools, then rerun without --skip-build');
   }

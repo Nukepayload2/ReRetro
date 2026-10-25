@@ -12,10 +12,12 @@
 ## `setup`
 
 ```powershell
-node scripts/rea-fc.mjs setup [--mesen-dir <dir>] [--bench-dir <dir>] [--skip-build] [--dry-run] [--json]
+node scripts/rea-fc.mjs setup [--mesen-dir <dir>] [--bench-dir <dir>] [--skip-build] [--rebuild] [--dry-run] [--json]
 ```
 
 检测构建先决、核对 submodule pin、构建缺失的工具（`dotnet restore` + MSBuild），并把客户端注册条目写进 `out/`。
+
+工具二进制存在时默认跳过构建；改过 submodule 源码后用 `--rebuild` 强制重建，否则跑的还是旧产物。
 
 | 输出 | 内容 |
 |------|------|
@@ -23,6 +25,8 @@ node scripts/rea-fc.mjs setup [--mesen-dir <dir>] [--bench-dir <dir>] [--skip-bu
 | `out/mcp.http.json` | HTTP 型配置模板（默认端口 `51234`，定位到桥时才写） |
 | `out/client-setup.md` | Claude Code / Codex / 通用 JSON 三种注册写法（定位到桥时才写） |
 | `out/environment.json` | 本次检测结果，供排障与复核（每次运行都写） |
+
+退出码：`0` 全部通过；`1` 有构建失败（磁盘上是旧产物，不是本次源码）；`2` 缺桥。submodule 存在未提交改动时该行标 `modified`。
 
 ## `doctor`
 
@@ -49,16 +53,18 @@ node scripts/rea-fc.mjs doctor [--live] [--rom <rom-path>] [--timeout <ms>] [--j
 ## `verify`
 
 ```powershell
-node scripts/rea-fc.mjs verify [--live] [--rom <rom-path>] [--load] [--timeout <ms>] [--json]
+node scripts/rea-fc.mjs verify [--live] [--breakpoint] [--rom <rom-path>] [--load] [--timeout <ms>] [--json]
 ```
 
-按顺序校验：submodule 检出与 pin → 桥可执行文件 → `initialize`/`tools/list` 握手 →（可选）Mesen 实时探测。
+按顺序校验：submodule 检出与 pin → submodule 工作树是否干净 → 桥可执行文件 → `initialize`/`tools/list` 握手 →（可选）Mesen 实时探测。
 
 工具清单由 Mesen 在启动时写入本机缓存，桥靠这份缓存离线应答。首次核验前先打开一次 Mesen；否则 `tools/list` 会返回「Mesen is not running」，脚本按降级（退出码 `2`）处理并给出提示。
 
 握手要求 pinned 的 23 个工具（含载入/关闭 ROM、存档/读档、输入覆盖、按帧推进）；本地构建多出的工具单独列出，不判失败。
 
 `--live` 追加一次实时探测：`get_rom_info`、`debugger_status`，在已载入 ROM 且有内存区时再做一次 `get_memory_range` 实际读取。`--rom` 把 `get_rom_info.rom_path` 与给定路径规范化比较；加 `--load` 时，若本次工具面带 `load_rom`，先让它载入再比对，否则按界面载入处理。
+
+`--breakpoint` 追加 `breakpoint-probe`：在 NES 栈页 `$01F0-$01FF` 设写断点、推进一帧、要求 `run_frames` 报 `stopped_by_breakpoint` 且 `get_debug_events` 出现 `Breakpoint` 事件，最后清空断点并恢复执行。它替换整个断点列表，所以不在 `--live` 里默认开启；只对 NES 生效，其他机型判为降级。
 
 ## `emulator`
 
@@ -119,11 +125,13 @@ node scripts/rea-fc.mjs cheat check --rom <rom> (--offset 0xNN | --address 0xNNN
 ## `sourcegen`
 
 ```powershell
-node scripts/rea-fc.mjs sourcegen stats --rom <rom> --prg-bank <n> [--json]
-node scripts/rea-fc.mjs sourcegen build --rom <rom> --prg-bank <n> [--save-project <dis65>] [--json]
+node scripts/rea-fc.mjs sourcegen stats --rom <rom> [--prg-bank <n>] [--json]
+node scripts/rea-fc.mjs sourcegen build --rom <rom> [--prg-bank <n>] [--save-project <dis65>] [--json]
 node scripts/rea-fc.mjs sourcegen line  --rom <rom> --prg-bank <n> --address 0x8000 [--count 32] [--json]
 node scripts/rea-fc.mjs sourcegen xref  --rom <rom> --address 0x0324 [--all-banks] [--writes-only] [--json]
 ```
+
+`stats`/`build` 不给 `--prg-bank` 时逐 bank 全跑，给了就只报那一个 bank——要单看固定 bank 的覆盖率必须显式给 `--prg-bank`。
 
 无人值守的反汇编入口。`scripts/sourcegen.mjs` 把 PRG bank 切成 16 KB 切片，交给 `tools/SourceGenCli`（引用 pin 的 `SourceGen`/`Asm65`/`CommonUtil` 工程的小工具），再把结果换回 CPU 地址与 ROM 文件偏移。分析本身来自 6502bench，驱动器只决定问什么、怎么打印。
 
@@ -135,7 +143,8 @@ node scripts/rea-fc.mjs sourcegen xref  --rom <rom> --address 0x0324 [--all-bank
 | `xref` | 操作数命中所查地址的指令；`--writes-only` 只留写与读改写，`--all-banks` 扫全部 bank |
 
 - 非 iNES 输入用 `--data <file> --base 0x8000`，语义相同。
-- 固定 bank（通常最后一个，映射在 `$C000`）会自动读 `$FFFA-$FFFF` 的 NMI/Reset/IRQ 向量作为分析入口；可切换 bank 只有起始字节一个种子，覆盖率过低时用 `--entry` 补入口点。
+- 固定 bank（通常最后一个，映射在 `$C000`）会自动读 `$FFFA-$FFFF` 的 NMI/Reset/IRQ 向量作为分析入口；可切换 bank 只有起始字节一个种子。
+- 覆盖率低就是分析没到：`--entry <addr>` 可重复，用来把已确认的入口（例如断点抓到的 `pc`）补进种子，再重看 `stats` 的指令数与 `xref` 的命中。`xref` 没命中可能是没分析到，不等于该地址没被写。
 - CPU 默认 `2a03`（NES），可用 `--cpu 6502|65c02|65816`；`--no-undocumented` 排除未文档化指令。
 - 跨 bank 引用不在单 bank 分析范围内：`--all-banks` 是逐 bank 分析后合并，不是跨 bank 符号解析。
 - 驱动器缺失时本命令直接失败并给出 `node scripts/setup.mjs`；`setup` 把它作为第三个构建目标。

@@ -11,6 +11,7 @@ import { locateTools, submoduleState } from './lib/tools.mjs';
 const args = parseArgs(process.argv.slice(2));
 const json = args.flag('json');
 const live = args.flag('live');
+const probeBreakpoints = args.flag('breakpoint');
 const rom = args.get('rom');
 const timeoutMs = Number.parseInt(args.get('timeout', '30000'), 10);
 
@@ -51,15 +52,22 @@ function gateSubmodules() {
       pinned: pin.commit,
       observed: observed?.commit ?? null,
       state: observed?.state ?? (present ? 'present' : 'missing'),
+      dirty: observed?.dirty ?? 0,
       present,
       matches,
     };
   });
 
   const allPresent = rowsOut.every(row => row.present && (row.observed === null || row.matches));
+  const dirty = rowsOut.filter(row => row.dirty > 0);
   pushGate('submodules', allPresent ? 'pass' : 'fail', allPresent
     ? 'both submodules are checked out at their pinned commits'
     : 'initialize submodules with: git submodule update --init --recursive');
+  //A dirty checkout builds from local edits, so the pinned commit alone no longer
+  //describes the binaries: say so instead of reporting the pin as proven.
+  pushGate('submodule-worktree', dirty.length === 0 ? 'pass' : 'warn', dirty.length === 0
+    ? 'no uncommitted changes in the submodule checkouts'
+    : dirty.map(row => `${row.path} has ${row.dirty} uncommitted change(s); commit them in the fork and record the pin, or the binaries do not match the pin`).join('; '));
   return { source: state.source, rows: rowsOut };
 }
 
@@ -248,13 +256,83 @@ function probeLive() {
     ? `available_controllers ${JSON.stringify(controllers)}`
     : 'no controller port is configured; set_input will be rejected — run node scripts/rea-fc.mjs emulator provision');
 
+  const breakpoints = (loaded && (probeBreakpoints || null))
+    ? probeBreakpointTools(bridge, romInfo, timeoutMs)
+    : null;
+
   return {
     ok,
     server: first.server,
     rom: romInfo ? { path: romInfo.rom_path, format: romInfo.format, console: romInfo.console_type_name, memoryTypes } : null,
     romMatches,
     controllers,
+    breakpoints,
     calls,
+  };
+}
+
+/**
+ * Prove the breakpoint path end to end: set a write breakpoint on the 6502 stack page
+ * (pushed every frame), advance one frame, and require both a frame shortfall and a
+ * Breakpoint event. It replaces the whole breakpoint list, which is why it is opt-in.
+ */
+function probeBreakpointTools(bridge, romInfo, timeout) {
+  if (romInfo?.console_type_name !== 'Nes') {
+    pushGate('breakpoint-probe', 'warn', `console is ${romInfo?.console_type_name ?? 'unknown'}; the probe needs the NES stack page`);
+    return null;
+  }
+
+  const calls = [
+    { name: 'set_breakpoints', arguments: { breakpoints: [{ address: 0x01f0, end_address: 0x01ff, type: 2 }] } },
+    { name: 'run_frames', arguments: { frames: 1, timeout_ms: 1500 } },
+    { name: 'get_debug_events', arguments: { max_count: 50 } },
+    { name: 'set_breakpoints', arguments: { breakpoints: [] } },
+    { name: 'resume', arguments: {} },
+  ];
+
+  let results;
+  try {
+    results = callBridgeTools({ command: bridge, calls, timeoutMs: Math.max(timeout, 60_000) }).results;
+  } catch (error) {
+    pushGate('breakpoint-probe', 'warn', `breakpoint probe did not run: ${error.message}`);
+    return { error: error.message };
+  }
+
+  const [setResult, runResult, eventsResult, clearResult] = results;
+  const set = parseJson(setResult?.result);
+  const run = parseJson(runResult?.result);
+  const events = parseJson(eventsResult?.result);
+  const cleared = parseJson(clearResult?.result);
+  const hits = (events?.events ?? []).filter(event => event.type === 'Breakpoint');
+
+  const failures = [];
+  if (set?.marked !== 1) {
+    failures.push(`set_breakpoints reported marked ${set?.marked ?? 'nothing'} (expected 1)`);
+  }
+  if (run?.stopped_by_breakpoint !== true) {
+    failures.push(`run_frames reported stopped_by_breakpoint ${run?.stopped_by_breakpoint ?? 'nothing'} after a stack write breakpoint`);
+  }
+  if (run?.timed_out === true) {
+    failures.push('run_frames timed out instead of stopping at the breakpoint');
+  }
+  if (hits.length === 0) {
+    failures.push('get_debug_events listed no Breakpoint event');
+  }
+  if (cleared?.breakpoints_set !== 0) {
+    failures.push(`the trailing set_breakpoints [] did not clear the list (${cleared?.breakpoints_set ?? 'nothing'})`);
+  }
+
+  const detail = failures.length === 0
+    ? `stopped after ${run?.frames_elapsed ?? '?'} frame(s), ${hits.length} Breakpoint event(s), breakpoint_id ${hits[0]?.breakpoint_id ?? '?'}`
+    : failures.join('; ');
+  pushGate('breakpoint-probe', failures.length === 0 ? 'pass' : 'warn', detail);
+
+  return {
+    ok: failures.length === 0,
+    detail,
+    framesElapsed: run?.frames_elapsed ?? null,
+    hits: hits.length,
+    breakpointIds: hits.map(event => event.breakpoint_id),
   };
 }
 
@@ -332,6 +410,14 @@ function finish() {
     }
     if (!report.live.calls) {
       status('warn', 'live probe', report.live.reason ?? 'unavailable');
+    }
+    if (report.live.breakpoints) {
+      rows([
+        ['breakpoint probe', report.live.breakpoints.ok ? 'hit on the first frame' : 'no hit'],
+        ['frames before the stop', String(report.live.breakpoints.framesElapsed ?? '?')],
+        ['Breakpoint events', String(report.live.breakpoints.hits ?? 0)],
+        ['breakpoint_id', JSON.stringify(report.live.breakpoints.breakpointIds ?? [])],
+      ]);
     }
   }
 

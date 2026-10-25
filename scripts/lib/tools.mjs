@@ -285,24 +285,34 @@ export function submoduleState({ timeoutMs = 20_000 } = {}) {
     const present = existsSync(join(paths.root, pin.path));
     const link = gitlinks.find(candidate => candidate.path === pin.path) ?? null;
     let actual = null;
+    let dirty = [];
     if (present) {
       const head = git(['-C', pin.path, 'rev-parse', 'HEAD'], { cwd: paths.root, timeoutMs });
       if (head.ok) {
         actual = head.stdout.trim();
+      }
+      //A checkout at the pinned commit can still carry local edits, which means the
+      //binaries were built from something other than upstream.
+      const status = git(['-C', pin.path, 'status', '--porcelain'], { cwd: paths.root, timeoutMs });
+      if (status.ok) {
+        dirty = status.stdout.split(/\r?\n/).filter(Boolean);
       }
     }
     const state = !present
       ? 'missing'
       : actual === null
         ? 'present'
-        : actual === pin.commit
-          ? 'initialized'
-          : 'different-commit';
+        : actual !== pin.commit
+          ? 'different-commit'
+          : dirty.length > 0
+            ? 'modified'
+            : 'initialized';
     return {
       path: pin.path,
       commit: actual ?? pin.commit,
       pinned: pin.commit,
       gitlink: link?.commit ?? null,
+      dirty: dirty.length,
       state,
     };
   });

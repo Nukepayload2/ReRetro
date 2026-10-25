@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
+import { makeInesImage, setPrgByte } from './helpers/rom-fixture.mjs';
 
 const DRIVER = fileURLToPath(new URL('../tools/SourceGenCli/bin/Release/SourceGenCli.exe', import.meta.url));
 const WRAPPER = fileURLToPath(new URL('../scripts/sourcegen.mjs', import.meta.url));
@@ -95,4 +96,62 @@ test('the wrapper analyses a raw slice and answers xref in JSON', { skip: exists
     assert.equal(report.references[0].byAddress, 0x8004);
     assert.equal(report.references[0].op, 'sta');
   });
+});
+
+test('--prg-bank narrows a whole-bank command to that bank', { skip: existsSync(DRIVER) ? false : 'SourceGen driver not built' }, () => {
+  const dir = mkdtempSync(join(tmpdir(), 'rea-fc-sgb-'));
+  const path = join(dir, 'two-banks.nes');
+  // Two PRG banks: the last one is the fixed window at $C000, the first the switchable
+  // window at $8000, so the two banks must not report the same base.
+  writeFileSync(path, setPrgByte(makeInesImage({ prgBanks: 2, chrBanks: 0 }), 0, 0xea));
+
+  try {
+    const all = runJson([WRAPPER, 'stats', '--rom', path, '--json']);
+    assert.equal(all.outcomes.length, 2, JSON.stringify(all));
+
+    const last = runJson([WRAPPER, 'stats', '--rom', path, '--prg-bank', '1', '--json']);
+    assert.equal(last.outcomes.length, 1, JSON.stringify(last));
+    assert.equal(last.outcomes[0].bank.index, 1);
+    assert.equal(last.outcomes[0].bank.base, 0xc000);
+
+    const first = runJson([WRAPPER, 'stats', '--rom', path, '--prg-bank', '0', '--json']);
+    assert.equal(first.outcomes.length, 1);
+    assert.equal(first.outcomes[0].bank.base, 0x8000);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+function runJson(argv) {
+  const result = spawnSync(process.execPath, argv, { encoding: 'utf8', timeout: 120_000 });
+  assert.equal(result.status, 0, result.stderr);
+  return JSON.parse(result.stdout);
+}
+
+test('--entry seeds an entry point the analyzer would not reach', { skip: existsSync(DRIVER) ? false : 'SourceGen driver not built' }, () => {
+  // BRK at the slice start stops the seeded analysis immediately, so the store past the
+  // filler is only code once --entry names it.
+  const split = [
+    0x00,
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0x8d, 0x24, 0x03, // STA $0324 at $800B
+    0x60,
+  ];
+
+  const dir = mkdtempSync(join(tmpdir(), 'rea-fc-sge-'));
+  const path = join(dir, 'slice.bin');
+  writeFileSync(path, Buffer.from(split));
+
+  try {
+    const without = runJson([WRAPPER, 'xref', '--data', path, '--base', '0x8000', '--address', '0x0324', '--writes-only', '--json']);
+    assert.equal(without.references.length, 0, JSON.stringify(without.references));
+
+    const seeded = runJson([WRAPPER, 'xref', '--data', path, '--base', '0x8000', '--address', '0x0324', '--writes-only', '--entry', '0x800B', '--json']);
+    assert.equal(seeded.references.length, 1, JSON.stringify(seeded));
+    assert.equal(seeded.references[0].byAddress, 0x800b);
+    assert.equal(seeded.references[0].op, 'sta');
+    assert.equal(seeded.references[0].bytes, '8D 24 03');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

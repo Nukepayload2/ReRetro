@@ -158,7 +158,7 @@ node scripts/verify.mjs --rom <rom-path> --live   # 追加「载入的是不是�
 
 `--rom` 默认只做比对：它把 `get_rom_info.rom_path` 与给定路径规范化后比较，不改变模拟器状态。加 `--load` 时先调 `load_rom` 载入再比对；本地构建缺该工具时按界面载入处理并在输出里说明。
 
-核验通过后，把本次的 `memory_types`（名称、ID、大小）记进工作台账；换 ROM 或换 Mesen 会话后必须重新核验。同时记下哪些接口在本版本可用：断点能设但事件/轨迹计数恒为 0 时，后续取证要直接走帧轮询，不要在会话里反复重试同一个接口。
+核验通过后，把本次的 `memory_types`（名称、ID、大小）记进工作台账；换 ROM 或换 Mesen 会话后必须重新核验。断点通道用 `node scripts/rea-fc.mjs verify --live --breakpoint` 验一次：它在 NES 栈页设写断点、推一帧，要求返回 `stopped_by_breakpoint: true` 并在事件里出现 `Breakpoint`，最后清空断点并恢复执行。手工做同一件事时，验完必须删掉断点，否则后续推帧都冻在第一个命中点。
 
 工具面以 pinned 提交为准（23 个）。本地构建若多出工具，`verify.mjs` 会把它们列在可选集里而不判失败；缺核心工具才降级。以本次 `tools/list` 返回为准。
 

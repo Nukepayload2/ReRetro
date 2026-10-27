@@ -39,6 +39,7 @@ namespace SourceGenCli
         public int Address = -1;
         public int Count = 32;
         public bool WritesOnly;
+        public bool CodeOnly;
     }
 
     internal static class Program
@@ -152,11 +153,22 @@ namespace SourceGenCli
         /// <summary>
         /// Find instructions whose operand names the requested address.
         ///
-        /// The analysis xref set only indexes addresses that exist inside the mapped
-        /// image, so a ROM-only project cannot report references to a RAM variable such as
-        /// a timer at $0324. Reading each instruction's operand out of the file closes that
-        /// gap: the result is "which instruction names this address", with its memory
-        /// effect, which is what locating a writer needs.
+        /// The analysis classifies only the bytes it can reach from a seed, and a
+        /// bank-switched window supplies almost no seeds: in a 16 KB bank that is entirely
+        /// code, nine tenths of the bytes stay unclassified. Walking the classified
+        /// instructions alone therefore answered "nothing refers to this address" for
+        /// addresses that ordinary code reads and writes, and an answer of "nothing" is
+        /// worse than an error: the caller excludes a whole class of explanation.
+        ///
+        /// This scan decodes every byte and labels each hit with the evidence behind it.
+        /// "code" means the analyzer agreed the byte starts an instruction. "raw" means
+        /// only the opcode table was consulted, which is what makes unreached code and
+        /// bank-switched routines visible. A raw hit is dropped when it starts inside a
+        /// classified instruction or spans a classified instruction start, because those
+        /// bytes are some real instruction's operand rather than code.
+        ///
+        /// Indirect modes name their pointer, not the address the instruction ends up
+        /// touching; a hit on a zero-page address therefore means "look through it".
         /// </summary>
         private static int CmdXref(Options opt)
         {
@@ -165,52 +177,151 @@ namespace SourceGenCli
                 throw new ArgumentException("--address is required");
             }
             DisasmProject project = Analyze(opt);
+            byte[] data = project.FileData;
+
+            bool[] instructionStarts = new bool[data.Length];
+            bool[] ownedByInstruction = new bool[data.Length];
+            int classifiedInstructions = 0;
+            for (int offset = 0; offset < data.Length; offset++)
+            {
+                Anattrib attrib = project.GetAnattrib(offset);
+                if (!attrib.IsInstructionStart)
+                {
+                    continue;
+                }
+                instructionStarts[offset] = true;
+                classifiedInstructions++;
+                int span = Math.Max(1, attrib.Length);
+                for (int i = offset; i < offset + span && i < data.Length; i++)
+                {
+                    ownedByInstruction[i] = true;
+                }
+            }
+
+            StatusFlags flags = new StatusFlags();
+            List<XrefHit> hits = new List<XrefHit>();
+            int codeHits = 0;
+            int rawHits = 0;
+            int acceptedEnd = 0;
+            for (int offset = 0; offset + 1 < data.Length; offset++)
+            {
+                OpDef op = project.CpuDef.GetOpDef(data[offset]);
+                int length = op.GetLength(flags);
+                if (length < 2 || offset + length > data.Length)
+                {
+                    continue;
+                }
+
+                bool isCode = instructionStarts[offset];
+                if (!isCode)
+                {
+                    if (opt.CodeOnly || ownedByInstruction[offset] ||
+                        SpansInstructionStart(instructionStarts, offset, length))
+                    {
+                        continue;
+                    }
+                }
+                // Greedy: the first candidate to claim a byte range keeps it, so overlapping
+                // decodings of the same bytes are reported once.
+                if (offset < acceptedEnd)
+                {
+                    continue;
+                }
+
+                int target = OperandTarget(op, data, offset, length);
+                if (target != opt.Address)
+                {
+                    continue;
+                }
+                bool writes = op.MemEffect == OpDef.MemoryEffect.Write ||
+                    op.MemEffect == OpDef.MemoryEffect.ReadModifyWrite;
+                if (opt.WritesOnly && !writes)
+                {
+                    continue;
+                }
+
+                acceptedEnd = offset + length;
+                Anattrib here = project.GetAnattrib(offset);
+                hits.Add(new XrefHit
+                {
+                    Offset = offset,
+                    Length = length,
+                    Op = op,
+                    Writes = writes,
+                    Code = isCode,
+                    Region = isCode ? "code"
+                        : here.IsVisited ? "data"
+                        : "unvisited",
+                });
+                if (isCode)
+                {
+                    codeHits++;
+                }
+                else
+                {
+                    rawHits++;
+                }
+            }
 
             StringBuilder sb = new StringBuilder();
             sb.Append("{\"ok\":true,\"command\":\"xref\"");
             sb.Append(",\"address\":").Append(Json.Hex(opt.Address));
             sb.Append(",\"writesOnly\":").Append(opt.WritesOnly ? "true" : "false");
+            sb.Append(",\"codeOnly\":").Append(opt.CodeOnly ? "true" : "false");
             sb.Append(",\"references\":[");
-            bool first = true;
-
-            int offset = 0;
-            while (offset < project.FileDataLength)
+            for (int i = 0; i < hits.Count; i++)
             {
-                Anattrib attrib = project.GetAnattrib(offset);
-                int length = Math.Max(1, attrib.Length);
-                if (!attrib.IsInstruction)
+                XrefHit hit = hits[i];
+                if (i > 0)
                 {
-                    offset += length;
-                    continue;
+                    sb.Append(',');
                 }
-
-                OpDef op = project.CpuDef.GetOpDef(project.FileData[offset]);
-                int target = OperandTarget(op, project.FileData, offset, length);
-                bool writes = op.MemEffect == OpDef.MemoryEffect.Write ||
-                    op.MemEffect == OpDef.MemoryEffect.ReadModifyWrite;
-                if (target == opt.Address && (!opt.WritesOnly || writes))
-                {
-                    if (!first)
-                    {
-                        sb.Append(',');
-                    }
-                    first = false;
-                    sb.Append("{\"byAddress\":").Append(Json.Hex(offset + opt.BaseAddress));
-                    sb.Append(",\"byOffset\":").Append(Json.Hex(offset));
-                    sb.Append(",\"op\":").Append(Json.Str(op.Mnemonic));
-                    sb.Append(",\"bytes\":").Append(Json.Str(ToHex(project.FileData, offset, length)));
-                    sb.Append(",\"effect\":").Append(Json.Str(op.MemEffect.ToString()));
-                    sb.Append(",\"mode\":").Append(Json.Str(op.AddrMode.ToString()));
-                    sb.Append(",\"indexed\":").Append(IsIndexedMode(op.AddrMode) ? "true" : "false");
-                    sb.Append('}');
-                }
-
-                offset += length;
+                sb.Append("{\"byAddress\":").Append(Json.Hex(hit.Offset + opt.BaseAddress));
+                sb.Append(",\"byOffset\":").Append(Json.Hex(hit.Offset));
+                sb.Append(",\"op\":").Append(Json.Str(hit.Op.Mnemonic));
+                sb.Append(",\"bytes\":").Append(Json.Str(ToHex(data, hit.Offset, hit.Length)));
+                sb.Append(",\"effect\":").Append(Json.Str(hit.Op.MemEffect.ToString()));
+                sb.Append(",\"mode\":").Append(Json.Str(hit.Op.AddrMode.ToString()));
+                sb.Append(",\"indexed\":").Append(IsIndexedMode(hit.Op.AddrMode) ? "true" : "false");
+                sb.Append(",\"indirect\":").Append(IsIndirectMode(hit.Op.AddrMode) ? "true" : "false");
+                sb.Append(",\"writes\":").Append(hit.Writes ? "true" : "false");
+                sb.Append(",\"tier\":").Append(Json.Str(hit.Code ? "code" : "raw"));
+                sb.Append(",\"region\":").Append(Json.Str(hit.Region));
+                sb.Append('}');
             }
-
-            sb.Append("]}");
+            sb.Append(']');
+            sb.Append(",\"scan\":{\"bytes\":").Append(data.Length);
+            sb.Append(",\"classifiedInstructions\":").Append(classifiedInstructions);
+            sb.Append(",\"code\":").Append(codeHits);
+            sb.Append(",\"raw\":").Append(rawHits);
+            sb.Append(",\"reported\":").Append(hits.Count);
+            sb.Append("}}");
             Console.Out.WriteLine(sb.ToString());
             return 0;
+        }
+
+        /// <summary>True when a candidate instruction would swallow the start of a classified one.</summary>
+        private static bool SpansInstructionStart(bool[] instructionStarts, int offset, int length)
+        {
+            for (int i = offset + 1; i < offset + length; i++)
+            {
+                if (instructionStarts[i])
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>One xref candidate, with the evidence that produced it.</summary>
+        private sealed class XrefHit
+        {
+            public int Offset;
+            public int Length;
+            public OpDef Op;
+            public bool Writes;
+            public bool Code;
+            public string Region;
         }
 
         /// <summary>Absolute or direct-page target named by an instruction operand, or -1.</summary>
@@ -257,6 +368,22 @@ namespace SourceGenCli
                 case OpDef.AddressMode.DPIndexY:
                 case OpDef.AddressMode.DPIndIndexY:
                 case OpDef.AddressMode.DPIndexXInd:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        /// <summary>True when the operand is a pointer: the hit names the pointer, not the target.</summary>
+        private static bool IsIndirectMode(OpDef.AddressMode mode)
+        {
+            switch (mode)
+            {
+                case OpDef.AddressMode.AbsInd:
+                case OpDef.AddressMode.AbsIndexXInd:
+                case OpDef.AddressMode.DPInd:
+                case OpDef.AddressMode.DPIndexXInd:
+                case OpDef.AddressMode.DPIndIndexY:
                     return true;
                 default:
                     return false;
@@ -569,6 +696,7 @@ namespace SourceGenCli
                     case "no-undocumented": opt.IncludeUndocumented = false; break;
                     case "two-byte-brk": opt.TwoByteBrk = true; break;
                     case "writes-only": opt.WritesOnly = true; break;
+                    case "code-only": opt.CodeOnly = true; break;
                     default:
                         throw new ArgumentException("unknown option: --" + name);
                 }
@@ -612,6 +740,7 @@ namespace SourceGenCli
                 "  --address 0x0324       CPU address for xref/line\n" +
                 "  --count 32             lines to print for line\n" +
                 "  --writes-only          only report writes for xref\n" +
+                "  --code-only            only report hits the analyzer classified as code\n" +
                 "  --no-undocumented      exclude undocumented opcodes\n" +
                 "Output is JSON on stdout; diagnostics go to stderr.";
         }

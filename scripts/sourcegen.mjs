@@ -18,7 +18,7 @@ import { parseRom, PRG_BANK_16K, hex } from './lib/rom.mjs';
  * Commands:
  *   stats  --rom <rom> --prg-bank N [--base 0x8000]
  *   build  --rom <rom> --prg-bank N [--save-project <dis65>]
- *   xref   --rom <rom> --address 0x0324 [--all-banks] [--writes-only]
+ *   xref   --rom <rom> --address 0x0324 [--all-banks] [--writes-only] [--code-only]
  *   line   --rom <rom> --prg-bank N --address 0xC000 [--count 32]
  *
  * `--data <file> --base <addr>` drives the same commands on a raw slice.
@@ -33,6 +33,7 @@ const json = args.flag('json');
 const romPath = args.get('rom');
 const dataPath = args.get('data');
 const writesOnly = args.flag('writes-only');
+const codeOnly = args.flag('code-only');
 const allBanks = args.flag('all-banks');
 const entries = args.all('entry').map(value => Number.parseInt(String(value), 0)).filter(Number.isInteger);
 const count = Number.parseInt(args.get('count', '32'), 10);
@@ -80,11 +81,17 @@ function xref() {
   const banks = allBanks ? source.banks() : [bankFromArgs()];
   const references = [];
   const errors = [];
+  // Scanner counters, summed over the banks actually scanned, so a caller can tell a
+  // complete scan from one that only saw a handful of classified instructions.
+  const scan = { bytes: 0, classifiedInstructions: 0, code: 0, raw: 0, reported: 0 };
   for (const bank of banks) {
-    const outcome = driverCall('xref', bank, { address, writesOnly });
+    const outcome = driverCall('xref', bank, { address, writesOnly, codeOnly });
     if (!outcome.ok) {
       errors.push({ bank: bank.index, error: outcome.error });
       continue;
+    }
+    for (const key of Object.keys(scan)) {
+      scan[key] += Number(outcome.scan?.[key] ?? 0);
     }
     for (const reference of outcome.references) {
       references.push({
@@ -96,7 +103,7 @@ function xref() {
       });
     }
   }
-  return { ok: errors.length === 0 || references.length > 0, command: 'xref', address: hex(address, 4), writesOnly, banks: banks.length, references, errors };
+  return { ok: errors.length === 0 || references.length > 0, command: 'xref', address: hex(address, 4), writesOnly, codeOnly, banks: banks.length, scan, references, errors };
 }
 
 function forEachBank(run_, { only } = {}) {
@@ -120,6 +127,9 @@ function driverCall(name, bank, extra = {}) {
     argv.push('--address', `0x${extra.address.toString(16)}`);
     if (extra.writesOnly) {
       argv.push('--writes-only');
+    }
+    if (extra.codeOnly) {
+      argv.push('--code-only');
     }
   }
   if (name === 'line') {
@@ -285,12 +295,20 @@ function print(report) {
     }
   }
   if (report.command === 'xref') {
-    rows([['address', report.address], ['banks', String(report.banks)], ['writes only', String(report.writesOnly)]]);
+    rows([
+      ['address', report.address],
+      ['banks', String(report.banks)],
+      ['writes only', String(report.writesOnly)],
+      ['code only', String(report.codeOnly)],
+      ['scanned', `${report.scan.bytes} B, ${report.scan.classifiedInstructions} 分类指令`],
+    ]);
     if (report.references.length === 0) {
-      status('warn', 'no reference', '该地址在这些 bank 里没有匹配的绝对/零页操作数');
+      // Never phrase this as "nobody writes the address": indirect modes name their
+      // pointer, and a table of pointers names nothing the scan can see.
+      status('warn', 'no match', '未检出：本次扫描没有命中该地址的操作数；间接寻址、指针表与计算出的基址不在扫描范围内，不等于该地址没人写');
     }
     for (const reference of report.references) {
-      console.log(`  bank ${reference.bank}  ${reference.byAddress}  ${reference.op} ${reference.bytes}  ${reference.mode}  ${reference.effect}  file 0x${reference.romOffset.toString(16).toUpperCase()}`);
+      console.log(`  bank ${reference.bank}  ${hex(reference.byAddress, 4)}  ${reference.op} ${reference.bytes}  ${reference.mode}  ${reference.effect}  ${reference.tier}/${reference.region}  file 0x${reference.romOffset.toString(16).toUpperCase()}`);
     }
   }
 }

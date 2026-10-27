@@ -128,7 +128,7 @@ node scripts/rea-fc.mjs cheat check --rom <rom> (--offset 0xNN | --address 0xNNN
 node scripts/rea-fc.mjs sourcegen stats --rom <rom> [--prg-bank <n>] [--json]
 node scripts/rea-fc.mjs sourcegen build --rom <rom> [--prg-bank <n>] [--save-project <dis65>] [--json]
 node scripts/rea-fc.mjs sourcegen line  --rom <rom> --prg-bank <n> --address 0x8000 [--count 32] [--json]
-node scripts/rea-fc.mjs sourcegen xref  --rom <rom> --address 0x0324 [--all-banks] [--writes-only] [--json]
+node scripts/rea-fc.mjs sourcegen xref  --rom <rom> --address 0x0324 [--all-banks] [--writes-only] [--code-only] [--json]
 ```
 
 `stats`/`build` 不给 `--prg-bank` 时逐 bank 全跑，给了就只报那一个 bank——要单看固定 bank 的覆盖率必须显式给 `--prg-bank`。
@@ -140,11 +140,16 @@ node scripts/rea-fc.mjs sourcegen xref  --rom <rom> --address 0x0324 [--all-bank
 | `stats` | 每个 bank 的覆盖率：代码字节、指令数、未访问字节数、消息数 |
 | `build` | 同上，可 `--save-project` 写出 `.dis65`，界面能直接打开继续加工 |
 | `line` | 指定地址起的指令表：地址、原始字节、助记符、操作数 |
-| `xref` | 操作数命中所查地址的指令；`--writes-only` 只留写与读改写，`--all-banks` 扫全部 bank |
+| `xref` | 操作数命中所查地址的指令；`--writes-only` 只留写与读改写，`--all-banks` 扫全部 bank，`--code-only` 只留分析器确认为指令的命中 |
 
 - 非 iNES 输入用 `--data <file> --base 0x8000`，语义相同。
 - 固定 bank（通常最后一个，映射在 `$C000`）会自动读 `$FFFA-$FFFF` 的 NMI/Reset/IRQ 向量作为分析入口；可切换 bank 只有起始字节一个种子。
-- 覆盖率低就是分析没到：`--entry <addr>` 可重复，用来把已确认的入口（例如断点抓到的 `pc`）补进种子，再重看 `stats` 的指令数与 `xref` 的命中。`xref` 没命中可能是没分析到，不等于该地址没被写。
+- 覆盖率低就是分析没到：`--entry <addr>` 可重复，用来把已确认的入口（例如断点抓到的 `pc`）补进种子。覆盖率只影响 `tier=code` 的命中数与 `line` 是否给出助记符，不影响 `xref` 是否命中——`xref` 会解码未分类字节。
+- `xref` 逐字节解码，不只走分析器分类过的指令。每条命中带 `tier` 与 `region`：`tier=code` 表示分析器确认为指令，`tier=raw` 表示只按操作码表解码；`region` 是 `code` / `data` / `unvisited`。可切换 bank 里九成字节通常停在 `unvisited`，所以「有没有命中」不再等于「分析有没有走到」。
+- `tier=raw` 的候选若落在一条已分类指令的字节内、或跨越一条已分类指令的首字节，直接丢弃：那些字节是真实指令的操作数，命中它们属于假阳性。`--code-only` 复原只看分类命中的旧语义，用来复核某条 `raw` 命中是否值得信。
+- `line` 按分析结果标注 `kind`：未分类字节显示为 `data` 且不带助记符。`xref` 的 `tier=raw` 命中正落在这种字节上，所以「`line` 说是 data」不能当成「命中有假」——要看这段的助记符，用 `--entry` 把该地址补进种子，或改用调试桥的 `get_disassembly`。
+- 间接寻址（`AbsInd` / `DPInd` / `DPIndIndexY` / `DPIndexXInd` / `AbsIndexXInd`）报的是指针地址，不是最终访问目标；这类命中带 `indirect: true`，读作「从这个槽位取值再访问」，不是「写这个槽位」。
+- 扫描范围是操作数本身：寄存器间接、指针表与自修改代码都在外面。返回 0 条只能写「未检出」，不能写成「该地址没人写」。
 - CPU 默认 `2a03`（NES），可用 `--cpu 6502|65c02|65816`；`--no-undocumented` 排除未文档化指令。
 - 跨 bank 引用不在单 bank 分析范围内：`--all-banks` 是逐 bank 分析后合并，不是跨 bank 符号解析。
 - 驱动器缺失时本命令直接失败并给出 `node scripts/setup.mjs`；`setup` 把它作为第三个构建目标。

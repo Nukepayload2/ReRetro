@@ -198,15 +198,17 @@ namespace SourceGenCli
                 }
             }
 
-            StatusFlags flags = new StatusFlags();
             List<XrefHit> hits = new List<XrefHit>();
             int codeHits = 0;
             int rawHits = 0;
             int acceptedEnd = 0;
             for (int offset = 0; offset + 1 < data.Length; offset++)
             {
+                // Length depends on the M/X width flags on the 65816, so read the analysis's
+                // own status word rather than assuming an 8-bit accumulator and index.
+                Anattrib here = project.GetAnattrib(offset);
                 OpDef op = project.CpuDef.GetOpDef(data[offset]);
-                int length = op.GetLength(flags);
+                int length = op.GetLength(here.StatusFlags);
                 if (length < 2 || offset + length > data.Length)
                 {
                     continue;
@@ -241,7 +243,6 @@ namespace SourceGenCli
                 }
 
                 acceptedEnd = offset + length;
-                Anattrib here = project.GetAnattrib(offset);
                 hits.Add(new XrefHit
                 {
                     Offset = offset,
@@ -412,7 +413,19 @@ namespace SourceGenCli
             for (int i = 0; i < opt.Count && offset < project.FileDataLength; i++)
             {
                 Anattrib attrib = project.GetAnattrib(offset);
-                int length = Math.Max(1, attrib.Length);
+                OpDef op = project.CpuDef.GetOpDef(project.FileData[offset]);
+                // `kind` keeps the analysis's verdict for every byte of a classified
+                // instruction; `tier` only says whether this offset is one of its starts.
+                // A listing that began mid-instruction used to report "code" and must keep
+                // doing so, or the flag reads as "the analysis changed its mind".
+                bool partOfCode = attrib.IsInstruction;
+                bool isStart = attrib.IsInstructionStart;
+                // Walking a listing needs a length even where the analysis never classified a
+                // byte, so an unreached region is stepped by the decoded opcode length instead
+                // of one byte at a time. Refusing to decode it is what made the xref trail
+                // unreadable.
+                int length = Math.Max(1, isStart ? attrib.Length : op.GetLength(attrib.StatusFlags));
+                bool decodable = op.AddrMode != OpDef.AddressMode.Unknown && offset + length <= project.FileDataLength;
                 if (!first)
                 {
                     sb.Append(',');
@@ -421,11 +434,12 @@ namespace SourceGenCli
                 sb.Append("{\"address\":").Append(Json.Hex(offset + opt.BaseAddress));
                 sb.Append(",\"offset\":").Append(Json.Hex(offset));
                 sb.Append(",\"bytes\":").Append(Json.Str(ToHex(project.FileData, offset, length)));
-                sb.Append(",\"kind\":").Append(Json.Str(attrib.IsInstruction ? "code" : attrib.IsInlineData ? "inline-data" : attrib.IsData ? "data" : "unknown"));
-                if (attrib.IsInstruction)
+                sb.Append(",\"kind\":").Append(Json.Str(partOfCode ? "code" : attrib.IsInlineData ? "inline-data" : attrib.IsData ? "data" : "unknown"));
+                sb.Append(",\"tier\":").Append(Json.Str(isStart ? "code" : "raw"));
+                if (decodable)
                 {
-                    sb.Append(",\"op\":").Append(Json.Str(OpName(project, attrib, offset)));
-                    sb.Append(",\"operand\":").Append(Json.Str(DescribeOperand(project, attrib, offset)));
+                    sb.Append(",\"op\":").Append(Json.Str(op.Mnemonic));
+                    sb.Append(",\"operand\":").Append(DescribeOperand(project, op, offset, length, opt.BaseAddress));
                 }
                 sb.Append('}');
                 offset += length;
@@ -563,31 +577,35 @@ namespace SourceGenCli
             sb.Append('}');
         }
 
-        /// <summary>Mnemonic of the instruction at an offset, read through the project's CPU table.</summary>
-        private static string OpName(DisasmProject project, Anattrib attrib, int offset)
+        /// <summary>
+        /// Short operand text for a listing line, as a ready-to-embed JSON string literal.
+        ///
+        /// Immediate and relative operands are values and targets, not addresses: printing them
+        /// as `$00xx` made `CMP #$04` read as `CMP $0004` and hid where a branch went, which
+        /// matters as soon as a listing is used to read unreached code.
+        /// </summary>
+        private static string DescribeOperand(DisasmProject project, OpDef op, int offset, int length, int baseAddress)
         {
-            if (!attrib.IsInstruction)
+            if (length < 2)
             {
-                return "data";
+                return Json.Str(string.Empty);
             }
-            OpDef op = project.CpuDef.GetOpDef(project.FileData[offset]);
-            return op.Mnemonic;
-        }
+            int operand = project.FileData[offset + 1];
+            if (length >= 3)
+            {
+                operand |= project.FileData[offset + 2] << 8;
+            }
 
-        /// <summary>Short operand text for a listing line, without the formatter.</summary>
-        private static string DescribeOperand(DisasmProject project, Anattrib attrib, int offset)
-        {
-            int operandLength = attrib.Length - 1;
-            if (operandLength <= 0)
+            switch (op.AddrMode)
             {
-                return string.Empty;
+                case OpDef.AddressMode.Imm:
+                    return Json.Str("#$" + (operand & 0xFF).ToString("X2", CultureInfo.InvariantCulture));
+                case OpDef.AddressMode.PCRel:
+                    int target = baseAddress + offset + length + (sbyte)(operand & 0xFF);
+                    return Json.Hex(target & 0xFFFF);
+                default:
+                    return Json.Hex(operand);
             }
-            int operand = 0;
-            for (int i = 1; i <= operandLength; i++)
-            {
-                operand |= project.FileData[offset + i] << (8 * (i - 1));
-            }
-            return Json.Hex(operand);
         }
 
         // ------------------------------------------------------------ plumbing

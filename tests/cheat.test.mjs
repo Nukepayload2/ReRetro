@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { compareByteVerdict, decodeGameGenie, encodeGameGenie } from '../scripts/lib/cheat.mjs';
+import { compareByteVerdict, compareValueVerdict, decodeGameGenie, encodeGameGenie } from '../scripts/lib/cheat.mjs';
 import { dumpBankBytes, parseRom } from '../scripts/lib/rom.mjs';
 import { makeInesImage, setPrgByte } from './helpers/rom-fixture.mjs';
 
@@ -73,4 +73,20 @@ test('compare byte uniqueness is reported across banks', () => {
   const unique = compareByteVerdict(rows, 2);
   assert.equal(unique.unique, true);
   assert.deepEqual(unique.matchingBanks, [2]);
+});
+
+test('a compare value is judged by the banks that hold it, not by the target bank', () => {
+  const rom = makeInesImage({ prgBanks: 3, prgFill: 0x00 });
+  setPrgByte(rom, 0x0200, 0x40);
+  setPrgByte(rom, 0x0200 + 0x4000, 0x40);
+  setPrgByte(rom, 0x0200 + 0x8000, 0x99);
+  const rows = dumpBankBytes(rom, parseRom(rom), { offsetInBank: 0x0200 });
+
+  // The value a code compares against is what decides where it fires, so it is judged
+  // directly; asking about the target bank's current byte only answers a different question.
+  assert.deepEqual(compareValueVerdict(rows, 0x40), { compare: 0x40, matchingBanks: [0, 1], unique: false });
+  assert.deepEqual(compareValueVerdict(rows, 0x99), { compare: 0x99, matchingBanks: [2], unique: true });
+  assert.deepEqual(compareValueVerdict(rows, 0x01), { compare: 0x01, matchingBanks: [], unique: false });
+
+  assert.throws(() => compareByteVerdict(rows, 7), /target bank/);
 });

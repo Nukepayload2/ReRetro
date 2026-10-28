@@ -115,6 +115,19 @@ function assertByteRange(value, label) {
 }
 
 /**
+ * Which banks hold a given compare value at the same in-bank offset.
+ *
+ * A code is evaluated wherever its CPU address is mapped, so a compare byte is safe only
+ * when exactly one bank holds it: two banks holding the same byte means the replacement
+ * also happens in the other one. Encoders that know the ROM can answer this before the
+ * code is delivered; without it the code looks safe and is not.
+ */
+export function compareValueVerdict(rows, compare) {
+  const matchingBanks = rows.filter((row) => row.byte === compare).map((row) => row.bank);
+  return { compare, matchingBanks, unique: matchingBanks.length === 1 };
+}
+
+/**
  * Decision helper for compare-byte selection.
  *
  * `rows` comes from `dumpBankBytes`: the byte at the same in-bank offset in
@@ -123,12 +136,16 @@ function assertByteRange(value, label) {
  * bank.
  */
 export function compareByteVerdict(rows, targetBank) {
-  const matches = rows.filter((row) => row.byte === rows.find((candidate) => candidate.bank === targetBank).byte);
+  const target = rows.find((row) => row.bank === targetBank);
+  if (!target) {
+    throw new CheatCodeError('the target bank is not in the row set', { targetBank, banks: rows.map((row) => row.bank) });
+  }
+  const verdict = compareValueVerdict(rows, target.byte);
   return {
     targetBank,
-    targetByte: rows.find((row) => row.bank === targetBank)?.byte ?? null,
-    matchingBanks: matches.map((row) => row.bank),
-    unique: matches.length === 1,
+    targetByte: target.byte,
+    matchingBanks: verdict.matchingBanks,
+    unique: verdict.unique,
     banks: rows,
   };
 }

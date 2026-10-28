@@ -90,8 +90,14 @@ function xref() {
       errors.push({ bank: bank.index, error: outcome.error });
       continue;
     }
+    if (outcome.scan === undefined) {
+      // A driver built before the operand scan reports no counters. Treat it as an error
+      // rather than reporting zeros that look like a complete, empty scan.
+      errors.push({ bank: bank.index, error: 'the driver reported no scan counters; rebuild it with node scripts/setup.mjs --rebuild' });
+      continue;
+    }
     for (const key of Object.keys(scan)) {
-      scan[key] += Number(outcome.scan?.[key] ?? 0);
+      scan[key] += Number(outcome.scan[key] ?? 0);
     }
     for (const reference of outcome.references) {
       references.push({
@@ -297,18 +303,23 @@ function print(report) {
   if (report.command === 'xref') {
     rows([
       ['address', report.address],
-      ['banks', String(report.banks)],
+      ['banks', `${report.banks - (report.errors?.length ?? 0)} scanned / ${report.banks}`],
       ['writes only', String(report.writesOnly)],
       ['code only', String(report.codeOnly)],
       ['scanned', `${report.scan.bytes} B, ${report.scan.classifiedInstructions} 分类指令`],
     ]);
+    // A bank that failed to analyse contributes nothing to the counters, and a reference in
+    // another bank would otherwise make the run look successful. Say it out loud.
+    for (const error of report.errors ?? []) {
+      status('warn', `bank ${error.bank} not scanned`, error.error);
+    }
     if (report.references.length === 0) {
       // Never phrase this as "nobody writes the address": indirect modes name their
       // pointer, and a table of pointers names nothing the scan can see.
       status('warn', 'no match', '未检出：本次扫描没有命中该地址的操作数；间接寻址、指针表与计算出的基址不在扫描范围内，不等于该地址没人写');
     }
     for (const reference of report.references) {
-      console.log(`  bank ${reference.bank}  ${hex(reference.byAddress, 4)}  ${reference.op} ${reference.bytes}  ${reference.mode}  ${reference.effect}  ${reference.tier}/${reference.region}  file 0x${reference.romOffset.toString(16).toUpperCase()}`);
+      console.log(`  bank ${reference.bank}  ${hex(reference.byAddress, 4)}  ${reference.op} ${reference.bytes}  ${reference.mode}  ${reference.effect}  ${reference.indirect ? 'via-pointer' : 'direct'}  ${reference.tier}/${reference.region}  file 0x${reference.romOffset.toString(16).toUpperCase()}`);
     }
   }
 }

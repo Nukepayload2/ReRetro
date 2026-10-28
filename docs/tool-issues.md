@@ -58,18 +58,20 @@
 | 症状 | 生成 8 位码时只做编解码，不提示该 compare 值在别的 PRG bank 是否也成立 |
 | 证据 | 实锤：`cheat encode` 输出码与解码结果，不含逐 bank 字节；唯一性要靠另一条 `cheat check` |
 | 影响 | 可切换窗口（`$8000-$BFFF`）的码缺唯一性时，会同时改坏其它 bank 的同偏移代码；这类错误在运行时表现为随机的异常行为，很难回溯到码 |
-| 状态 | 未修 |
-| 绕行 | 任何落在 `$8000-$BFFF` 的码，交付前必须跑一次 `cheat check --address <cpu>` 并把逐 bank 表贴进交付；唯一性不成立就不要用 8 位码 |
+| 状态 | 已修：`encode` 接受 `--rom`，输出 `uniqueness`（逐 bank 字节、持有校验值的 bank 列表、是否唯一、目标 bank 当前字节是否等于校验值）；不带 `--rom` 且给了 `--compare` 时输出「校验值未核验」警告 |
+| 验证 | 同一组 ROM 字节：`encode --compare <共有字节> --rom <rom> --bank <目标>` 报 `unique: false` 并列出两个 bank；换成只在一个 bank 出现的字节报 `unique: true`；不带 `--rom` 时人类输出出现 `compare byte not verified`（`tests/cheat-cli.test.mjs`） |
+| 绕行 | 无（已修）。8 位码交付前仍要贴出 `uniqueness` 的逐 bank 表；唯一性不成立就不要用 8 位码 |
 
 ## TI-005 `patch --edit` 默认 bank 0，固定 bank 改动报不出 CPU 地址
 
 | 字段 | 内容 |
 |------|------|
 | 症状 | 编辑落在 `$C000-$FFFF` 的固定 bank 时，报告里每条编辑都写 `CPU n/a (outside the selected bank)` |
-| 证据 | 实锤：默认 `--bank 0`，编辑偏移超出 bank 0 覆盖范围时退回 `null` |
+| 证据 | 实锤：默认 `--bank 0`，编辑偏移超出 bank 0 覆盖范围时退回 `null`。对同一 ROM 的固定 bank 编辑，修复前输出 `CPU n/a (outside the selected bank)`，修复后输出 `CPU 0xD36F (bank 15 @ 0xC000)` |
 | 影响 | 交付表缺 CPU 地址，读的人无法把「文件偏移」和「调试器里看到的地址」对上；也掩盖了「改动是否落在固定 bank」这个安全判断 |
-| 状态 | 未修 |
-| 绕行 | 报告 CPU 地址时显式给 `--bank <固定 bank 序号> --bank-cpu-start 0xC000`，或交付表里手工补一列并注明推导方式 |
+| 状态 | 已修：不给 `--bank` 时按 `--bank-size` 从偏移推出 bank，末 bank 视为固定窗口；每条编辑同时报 `bank` 与 `bankCpuStart`；显式 `--bank` 仍然优先 |
+| 验证 | `--edit <固定 bank 偏移>:..:.. --dry-run` 前后对照：`n/a` → `CPU 0xD36F (bank 15 @ 0xC000)`；`--bank 0` 显式给错时仍为 `null`，`n/a` 的原因改成 `outside PRG ROM`（`tests/patch-cli.test.mjs`） |
+| 绕行 | 无（已修） |
 
 ## TI-006 `load_state` 之后断点是否仍然有效没有确定行为
 
@@ -111,6 +113,28 @@
 | 状态 | 已修（输出层）：命中新增 `indirect` 字段，间接模式（`AbsInd` / `DPInd` / `DPIndIndexY` / `DPIndexXInd` / `AbsIndexXInd`）为 `true`，且 `mode` 已能区分；「报不报」的行为不变 |
 | 验证 | 同一地址修复后可直接按 `indirect === false` 分出直接写入；`tests/sourcegen.test.mjs` 断言直接命中的 `indirect` 为 `false` |
 | 绕行 | 读 `xref` 结果先按 `indirect` 分组；间接命中只用来找指针表，不用来数写入点 |
+
+## TI-010 `cheat check --address` 对 `$C000` 及以上的地址直接报错
+
+| 字段 | 内容 |
+|------|------|
+| 症状 | `check --rom <rom> --address 0xC0A0` 报 `the CPU address is outside the selected bank window` |
+| 证据 | 实锤：默认窗口固定在 `$8000`、bank 大小 16 KB，`0xC0A0 - 0x8000 = 0x40A0` 超出窗口，于是整条查询失败；同一地址在修复后返回 bank 15、偏移 `0x00A0`、逐 bank 字节 |
+| 影响 | 固定 bank 上的校验值完全无法核对，而固定 bank 正是最常落码的地方；调用方会以为地址写错，或者改用错误的窗口去查另一个 bank 的字节 |
+| 状态 | 已修：窗口由地址推出（`$C000` 及以上用固定窗口），目标 bank 默认取最后一个；`--offset` 路径保持原语义 |
+| 验证 | 同一 ROM、同一命令：修复前报错退出，修复后给出 `bankCpuStart: 0xC000`、`targetBank: <末 bank>`、`targetByte` 与逐 bank 表（`tests/cheat-cli.test.mjs`） |
+| 绕行 | 无（已修） |
+
+## TI-011 `sourcegen line` 的 `operand` 是双重编码的字符串，立即数与分支按地址打印
+
+| 字段 | 内容 |
+|------|------|
+| 症状 | `operand` 字段解析出来带引号（`"\"$8004\""`）；`CMP #$04` 显示成 `$0004`，`BNE` 显示原始位移而不是跳转目标 |
+| 证据 | 实锤：`Json.Hex` 本身已返回带引号的 JSON 字面量，调用处又套了一层 `Json.Str`；分支与立即数的处理直接落进默认的「当作 16 位地址」分支 |
+| 影响 | 手写解析 `operand` 的调用方拿到带引号的值；读代码时把立即数当内存地址、把位移当目标，会把门控代码读错 |
+| 状态 | 已修：`operand` 只编码一次；立即数打印 `#$xx`，相对操作数打印跳转后的目标地址 |
+| 验证 | 对同一段 `LDA $xxxx / CMP #$04 / BNE / STY / RTS` 取 `line`：修复后 `operand` 分别为 `$03D8`、`#$04`、跳转目标、`$0390`、空（`tests/sourcegen.test.mjs`） |
+| 绕行 | 无（已修） |
 
 ## 记录规则
 

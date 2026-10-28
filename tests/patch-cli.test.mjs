@@ -84,6 +84,42 @@ test('patch-rom refuses a mismatch, an in-place output and an existing output', 
   }
 });
 
+test('patch-rom derives the bank of an edit instead of reporting no CPU address', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'rea-fc-patch-'));
+  try {
+    // Two banks: bank 1 is the fixed window at $C000. An edit there used to print
+    // "n/a (outside the selected bank)" because the default bank was 0.
+    const rom = makeInesImage({ prgBanks: 2, chrBanks: 0, prgFill: 0x00 });
+    setPrgByte(rom, 0x4000 + 0x1234, 0xea);
+    const romPath = join(dir, 'game.nes');
+    const outPath = join(dir, 'game.patched.nes');
+    writeFileSync(romPath, rom);
+
+    const result = runCli([
+      '--rom', romPath,
+      '--out', outPath,
+      '--edit', '0x5244:ea:ea:fixed bank',
+      '--json',
+    ]);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.edits[0].bank, 1);
+    assert.equal(report.edits[0].bankCpuStart, 0xc000);
+    assert.equal(report.edits[0].cpuAddress, 0xc000 + 0x1234);
+
+    // An explicit --bank still wins, so a deliberately wrong window stays visible as null.
+    const forced = runCli(['--rom', romPath, '--out', join(dir, 'c.nes'), '--edit', '0x5244:ea:ea', '--bank', '0', '--json']);
+    assert.equal(forced.status, 0, forced.stderr || forced.stdout);
+    assert.equal(JSON.parse(forced.stdout).edits[0].cpuAddress, null);
+
+    // An edit outside the PRG image keeps the null, and the reason is now the image, not the bank.
+    const human = runCli(['--rom', romPath, '--out', join(dir, 'd.nes'), '--edit', '0x5244:ea:ea', '--bank', '0']);
+    assert.match(human.stdout, /n\/a \(outside PRG ROM\)/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('rom info prints the header facts', () => {
   const dir = mkdtempSync(join(tmpdir(), 'rea-fc-info-'));
   try {

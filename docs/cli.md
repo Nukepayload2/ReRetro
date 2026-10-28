@@ -106,7 +106,8 @@ node scripts/rea-fc.mjs patch --rom <rom> --out <patched> `
 - 每条编辑先断言原字节，再写入；全部完成后读回校验，并给出前后 SHA256。
 - 原 ROM 永不被覆盖：`--out` 与 `--rom` 相同会直接报错；目标已存在时需 `--force`。
 - `--ips` 从「原 ROM → 新 ROM」的差异生成 IPS；IPS 只是交付格式，权威产物是脚本重放的结果。
-- `--bank`/`--bank-cpu-start`/`--bank-size` 用于把文件偏移标注成 CPU 地址，标注不上时如实显示 `n/a`。
+- `--bank`/`--bank-cpu-start`/`--bank-size` 用于把文件偏移标注成 CPU 地址。不给 `--bank` 时按 `--bank-size` 从偏移推出 bank，并假定 PRG 的最后一个 bank 是固定窗口（`$C000`、或 `0x10000 - bank-size`）；只有偏移落在 PRG 之外（头、CHR、trainer）才显示 `n/a`。给了 `--bank` 就以它为准，标注不上时如实显示 `n/a`。
+- 每条编辑同时报出 `bank` 与 `bankCpuStart`，所以「改动落在可切换区还是固定区」可以直接从报告里读，不需要再单独推导。
 
 生成 IPS 时若某条记录会落在 `0x454F46`（IPS 的结束标记 `EOF`），脚本直接报错而不是产出一个会被读成结束符的补丁。
 
@@ -114,13 +115,16 @@ node scripts/rea-fc.mjs patch --rom <rom> --out <patched> `
 
 ```powershell
 node scripts/rea-fc.mjs cheat decode <CODE> [--json]
-node scripts/rea-fc.mjs cheat encode --address 0xNNNN --value 0xNN [--compare 0xNN] [--json]
+node scripts/rea-fc.mjs cheat encode --address 0xNNNN --value 0xNN [--compare 0xNN] [--rom <rom>] [--json]
 node scripts/rea-fc.mjs cheat check --rom <rom> (--offset 0xNN | --address 0xNNNN) `
   [--bank N] [--bank-size 0x4000] [--bank-cpu-start 0x8000] [--json]
 ```
 
 - `decode`/`encode` 使用 `third_party/MesenGM` 的 `CheatManager` 位序：6 位码是「地址 + 值」，8 位码是「地址 + 值 + 校验值」。
+- `encode` 给 `--rom` 时同时输出 `uniqueness`：目标偏移在每个 PRG bank 的原始字节、哪些 bank 持有该校验值、校验值是否唯一、目标 bank 当前字节是否等于校验值。不给 `--rom` 而带 `--compare` 时，输出一条「校验值未核验」的警告——8 位码的安全性就在这个字节上，沉默等于把它当成了已核验。
+- 校验值不唯一时，码会在持有同一字节的其它 bank 里同样生效；目标 bank 当前字节不等于校验值时，码在该 bank 根本不会触发。两种都由 `uniqueness` 直接给出，不要只看码能不能编出来。
 - `check` 打印同一 bank 内偏移在每个 PRG bank 的原始字节，并给出目标 bank 的校验值是否唯一。唯一性不成立时不要交付 8 位码。
+- `--address` 落在固定窗口（`$C000` 及以上）时自动用该窗口，目标 bank 默认是最后一个；`$8000-$BFFF` 是可切换窗口，目标 bank 必须用 `--bank` 指定，默认 `0` 只是占位。
 
 ## `sourcegen`
 
@@ -139,7 +143,7 @@ node scripts/rea-fc.mjs sourcegen xref  --rom <rom> --address 0x0324 [--all-bank
 |------|------|
 | `stats` | 每个 bank 的覆盖率：代码字节、指令数、未访问字节数、消息数 |
 | `build` | 同上，可 `--save-project` 写出 `.dis65`，界面能直接打开继续加工 |
-| `line` | 指定地址起的指令表：地址、原始字节、助记符、操作数 |
+| `line` | 指定地址起的指令表：地址、原始字节、`kind`、`tier`、助记符、操作数 |
 | `xref` | 操作数命中所查地址的指令；`--writes-only` 只留写与读改写，`--all-banks` 扫全部 bank，`--code-only` 只留分析器确认为指令的命中 |
 
 - 非 iNES 输入用 `--data <file> --base 0x8000`，语义相同。
@@ -147,7 +151,7 @@ node scripts/rea-fc.mjs sourcegen xref  --rom <rom> --address 0x0324 [--all-bank
 - 覆盖率低就是分析没到：`--entry <addr>` 可重复，用来把已确认的入口（例如断点抓到的 `pc`）补进种子。覆盖率只影响 `tier=code` 的命中数与 `line` 是否给出助记符，不影响 `xref` 是否命中——`xref` 会解码未分类字节。
 - `xref` 逐字节解码，不只走分析器分类过的指令。每条命中带 `tier` 与 `region`：`tier=code` 表示分析器确认为指令，`tier=raw` 表示只按操作码表解码；`region` 是 `code` / `data` / `unvisited`。可切换 bank 里九成字节通常停在 `unvisited`，所以「有没有命中」不再等于「分析有没有走到」。
 - `tier=raw` 的候选若落在一条已分类指令的字节内、或跨越一条已分类指令的首字节，直接丢弃：那些字节是真实指令的操作数，命中它们属于假阳性。`--code-only` 复原只看分类命中的旧语义，用来复核某条 `raw` 命中是否值得信。
-- `line` 按分析结果标注 `kind`：未分类字节显示为 `data` 且不带助记符。`xref` 的 `tier=raw` 命中正落在这种字节上，所以「`line` 说是 data」不能当成「命中有假」——要看这段的助记符，用 `--entry` 把该地址补进种子，或改用调试桥的 `get_disassembly`。
+- `line` 按分析结果标注 `kind`，并在分析没分类到的地方改用操作码表解码，`tier` 标明是哪一种。`xref` 的 `tier=raw` 命中落在这种字节上，`line` 会把同一段按指令长度走完，所以「`kind` 是 data」不等于「这里没有指令」。立即数打印为 `#$xx`，相对操作数打印为跳转后的目标地址，不是原样位移。
 - 间接寻址（`AbsInd` / `DPInd` / `DPIndIndexY` / `DPIndexXInd` / `AbsIndexXInd`）报的是指针地址，不是最终访问目标；这类命中带 `indirect: true`，读作「从这个槽位取值再访问」，不是「写这个槽位」。
 - 扫描范围是操作数本身：寄存器间接、指针表与自修改代码都在外面。返回 0 条只能写「未检出」，不能写成「该地址没人写」。
 - CPU 默认 `2a03`（NES），可用 `--cpu 6502|65c02|65816`；`--no-undocumented` 排除未文档化指令。

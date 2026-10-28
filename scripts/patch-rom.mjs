@@ -58,10 +58,16 @@ function main() {
     }
 
     const bank = {
-      index: Number.parseInt(args.get('bank', '0'), 10),
-      cpuStart: parseInteger(args.get('bank-cpu-start', '0x8000'), 'bank-cpu-start'),
+      // An explicit bank wins. Without one, each edit derives the bank that can contain it:
+      // defaulting to bank 0 made every fixed-window edit report "outside the selected bank",
+      // which hid both the CPU address and the fact that the change landed in a fixed bank.
+      index: args.get('bank') === undefined ? null : Number.parseInt(args.get('bank'), 10),
+      cpuStart: args.get('bank-cpu-start') === undefined ? null : parseInteger(args.get('bank-cpu-start'), 'bank-cpu-start'),
       size: parseInteger(args.get('bank-size', '0x4000'), 'bank-size'),
     };
+    if (bank.index !== null && (!Number.isInteger(bank.index) || bank.index < 0)) {
+      throw new RomError('--bank must be a non-negative integer', { bank: args.get('bank') });
+    }
 
     const edits = editSpecs.map(spec => parseEdit(spec, header));
     const { buffer: patched, applied } = applyEdits(buffer, edits);
@@ -83,13 +89,18 @@ function main() {
       rom: relativePath(romFile),
       out: dryRun ? '(dry run)' : relativePath(outFile),
       header,
-      edits: applied.map((edit, index) => ({
-        fileOffset: hex(edit.offset, 6),
-        cpuAddress: cpuAddressFor(header, edit.offset, bank),
-        expected: edit.expect,
-        written: edit.write,
-        note: edits[index].note,
-      })),
+      edits: applied.map((edit, index) => {
+        const placement = placementFor(header, edit.offset, bank);
+        return {
+          fileOffset: hex(edit.offset, 6),
+          bank: placement?.index ?? null,
+          bankCpuStart: placement?.cpuStart ?? null,
+          cpuAddress: placement?.cpuAddress ?? null,
+          expected: edit.expect,
+          written: edit.write,
+          note: edits[index].note,
+        };
+      }),
       ips: ips ? { path: relativePath(resolve(args.get('ips'))), records: ips.records } : null,
       sha256: { before: header.sha256, after: sha256(patched) },
       verified: verified && (dryRun || readBack.equals(patched)),
@@ -137,19 +148,33 @@ function parseEdit(spec, header) {
   return { offset, expect, write, note: noteParts.join(':') };
 }
 
-function cpuAddressFor(header, fileOffset, bank) {
+/**
+ * Where an edit lands: bank index, CPU window of that bank, and the CPU address.
+ *
+ * Returns null when the file offset is not inside the PRG image (header, CHR, trainer).
+ * The last bank of the PRG image is assumed to be the fixed window, which is what every
+ * NES mapper does; `--bank` and `--bank-cpu-start` override the derivation.
+ */
+function placementFor(header, fileOffset, bank) {
   const prgStart = header.prgOffset;
-  const bankStart = prgStart + bank.index * bank.size;
+  const bankCount = Math.floor(header.prgSize / bank.size);
+  const index = bank.index ?? Math.floor((fileOffset - prgStart) / bank.size);
+  if (!Number.isInteger(index) || index < 0 || index >= bankCount) {
+    return null;
+  }
+  const bankStart = prgStart + index * bank.size;
   if (fileOffset < bankStart || fileOffset >= bankStart + bank.size) {
     return null;
   }
+  const cpuStart = bank.cpuStart ?? (index === bankCount - 1 ? 0x10000 - bank.size : 0x8000);
   try {
-    return fileOffsetToCpu(header, {
+    const { cpuAddress } = fileOffsetToCpu(header, {
       offset: fileOffset,
-      bankIndex: bank.index,
-      bankCpuStart: bank.cpuStart,
+      bankIndex: index,
+      bankCpuStart: cpuStart,
       bankSize: bank.size,
-    }).cpuAddress;
+    });
+    return { index, cpuStart, cpuAddress };
   } catch {
     return null;
   }
@@ -191,7 +216,9 @@ function printResult(result) {
 
   heading('Edits');
   for (const edit of result.edits) {
-    const cpu = edit.cpuAddress === null ? 'n/a (outside the selected bank)' : hex(edit.cpuAddress);
+    const cpu = edit.cpuAddress === null
+      ? 'n/a (outside PRG ROM)'
+      : `${hex(edit.cpuAddress)} (bank ${edit.bank} @ ${hex(edit.bankCpuStart, 4)})`;
     console.log(`  ${edit.fileOffset}  CPU ${cpu}  ${edit.expected} -> ${edit.written}${edit.note ? '  ' + edit.note : ''}`);
   }
 

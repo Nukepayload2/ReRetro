@@ -82,10 +82,50 @@ test('the driver lists instructions with their bytes', { skip: existsSync(DRIVER
     assert.equal(payload.lines.length, 3);
     assert.equal(payload.lines[0].address, '$8004');
     assert.equal(payload.lines[0].bytes, '8D 24 03');
+    assert.equal(payload.lines[0].tier, 'code');
     assert.equal(payload.lines[1].address, '$8007');
     assert.equal(payload.lines[1].op, 'lda');
     assert.equal(payload.lines[2].op, 'rts');
+
+    // A listing that starts mid-instruction still says the byte is part of code; only the
+    // tier says it is not an instruction start.
+    const mid = driver(['line', '--data', path, '--base', '0x8000', '--address', '0x8001', '--count', '1']);
+    assert.equal(mid.payload.lines[0].kind, 'code');
+    assert.equal(mid.payload.lines[0].tier, 'raw');
   });
+});
+
+test('a listing decodes unreached bytes instead of stopping at them', { skip: existsSync(DRIVER) ? false : 'SourceGen driver not built' }, () => {
+  // `xref` reports unreached code, so the listing that follows a hit has to decode the same
+  // bytes: stepping one byte at a time and refusing to name an opcode made the trail
+  // unreadable exactly where it mattered. `kind` keeps the analysis's verdict.
+  const slice = [
+    0x00,
+    0xff, 0xff, 0xff, 0xff, 0xff,
+    0xad, 0xd8, 0x03, // LDA $03D8 at $8006
+    0xc9, 0x04,       // CMP #$04
+    0xd0, 0x04,       // BNE $8011 (branch targets are computed, not copied)
+    0x8c, 0x90, 0x03, // STY $0390
+    0x60,             // RTS
+  ];
+
+  const dir = mkdtempSync(join(tmpdir(), 'rea-fc-sgl-'));
+  const path = join(dir, 'slice.bin');
+  writeFileSync(path, Buffer.from(slice));
+
+  try {
+    const { payload } = driver(['line', '--data', path, '--base', '0x8000', '--address', '0x8006', '--count', '5']);
+    assert.deepEqual(payload.lines.map(line => line.kind), ['data', 'data', 'data', 'data', 'data']);
+    assert.deepEqual(payload.lines.map(line => line.tier), ['raw', 'raw', 'raw', 'raw', 'raw']);
+    assert.deepEqual(payload.lines.map(line => line.op), ['lda', 'cmp', 'bne', 'sty', 'rts']);
+    // An immediate is a value and a relative operand is a target, not an address.
+    assert.equal(payload.lines[0].operand, '$03D8');
+    assert.equal(payload.lines[1].operand, '#$04');
+    assert.equal(payload.lines[2].operand, '$8011');
+    assert.deepEqual(payload.lines.map(line => line.address), ['$8006', '$8009', '$800B', '$800D', '$8010']);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('the wrapper analyses a raw slice and answers xref in JSON', { skip: existsSync(DRIVER) ? false : 'SourceGen driver not built' }, () => {

@@ -76,7 +76,7 @@ node scripts/rea-fc.mjs info <rom>
 - 在目标变量上设写断点，记录命中时的 `PC`、`A/X/Y`、旧值与新值。断点列表是整体替换，设置前先确认当前列表。
 - 在候选例程设执行断点，确认实际走的分支，而不是只看最终画面。
 - 断点或轨迹不工作时不要停等修复：逐帧推进、读关键变量，按「值变化的那一帧」定位，交付里注明这是轮询证据。
-- 写断点设上了、事件却恒为空时，写入者改走静态路径：变量地址 → `sourcegen xref --all-banks --writes-only` → 命中偏移还原 CPU 地址 → `get_disassembly` 读上下文。`xref` 会解码未分类字节，`tier=raw` 是「代码确实存在但分析没走到」的那一类；`indirect: true` 报的是指针槽位，不是目标。扁平 PRG 搜 `8D/8C/9D <lo> <hi>` 只用来独立复核某条命中。不要用值变化的帧号代替写入指令。
+- 写断点设上了、事件却恒为空时，先确认断点带 `mark_events`（默认真）且地址口径对得上，再改走静态路径：变量地址 → `sourcegen xref --all-banks --writes-only` → 命中偏移还原 CPU 地址 → `sourcegen line` 或 `get_disassembly` 读上下文。`xref` 会解码未分类字节，`tier=raw` 是「代码确实存在但分析没走到」的那一类；`indirect: true` 报的是指针槽位，不是目标。扁平 PRG 搜 `8D/8C/9D <lo> <hi>` 只用来独立复核某条命中。不要用值变化的帧号代替写入指令。
 - 解释 `$8000-$BFFF` 前先确认当前 bank：取足够长的字节串与各 PRG bank 比对，再换算 bank 内偏移。
 - 直接改 PRG 内存只对当前进程有效；A/B 之前重新写入并读回。
 

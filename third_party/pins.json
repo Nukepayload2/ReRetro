@@ -4,7 +4,7 @@
     {
       "path": "third_party/MesenGM",
       "url": "https://github.com/Nukepayload2/MesenGM.git",
-      "commit": "e18024c81a4dd9b7b7f08e5df0b5fbc2d05b38ca",
+      "commit": "6ba350689583b562bccb990048fa70952d578a20",
       "role": "dynamic side: emulator plus the MCP debugger bridge (MCPServer.exe)"
     },
     {

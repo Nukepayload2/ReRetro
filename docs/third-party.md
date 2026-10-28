@@ -1,15 +1,27 @@
 # 第三方工具仓
 
-两个工具以 submodule 形式引入，保留各自的上游身份、许可与历史。本仓库不复制、不改写它们的源码；唯一的重实现是 Game Genie 位序（见下文许可边界）。
+两个工具以 submodule 形式引入，保留各自的提交、许可与历史。`third_party/6502bench` 是真正的第三方，本仓库不复制、不改写它的源码；`third_party/MesenGM` 是本项目自己的 fork，调试桥的修复就提交在那里（见下文「本项目的 fork」）。唯一的重实现是 Game Genie 位序（见下文许可边界）。
 
 ## Pin
 
-| 路径 | 上游 | 提交 | 许可 | 角色 |
+| 路径 | 来源 | 提交 | 许可 | 角色 |
 |------|------|------|------|------|
-| `third_party/MesenGM` | `https://github.com/Nukepayload2/MesenGM.git` | `e18024c81a4dd9b7b7f08e5df0b5fbc2d05b38ca` | GPL-3.0 | 动态侧：Mesen 模拟器 + MCP 调试桥 `MCPServer.exe`（23 个工具） |
-| `third_party/6502bench` | `https://github.com/fadden/6502bench.git` | `f43f3761fd63cef7fe2e2e71fb2b58fec0c4a73e` | Apache-2.0 | 静态侧：SourceGen 反汇编工作台 |
+| `third_party/MesenGM` | `https://github.com/Nukepayload2/MesenGM.git`（本项目的 fork） | `6ba3506895837a1f1f72e6bcbe3ad9dcd2a2f7c6` | GPL-3.0 | 动态侧：Mesen 模拟器 + MCP 调试桥 `MCPServer.exe`（23 个工具） |
+| `third_party/6502bench` | `https://github.com/fadden/6502bench.git`（第三方） | `f43f3761fd63cef7fe2e2e71fb2b58fec0c4a73e` | Apache-2.0 | 静态侧：SourceGen 反汇编工作台 |
 
 提交号同时出现在两处：superproject 的 gitlink（权威）与 `third_party/pins.json`（可读副本）。`scripts/check-docs.mjs` 会核对两者与 `.gitmodules` 是否一致。
+
+## 本项目的 fork
+
+`MesenGM` 的地址是本项目的 fork，不是第三方上游。调试桥的行为是本仓库交付物的一部分——事件历史、断点命中原因、`run_frames` 的返回字段都在这里定义——所以这些改动直接提交到该 fork，再升级 pin：
+
+1. 在 `third_party/MesenGM` 里提交，推到 fork 的分支；pin 指向的提交必须在该 fork 里可取，否则别人的 `git submodule update` 拿不到它。
+2. `node scripts/rea-fc.mjs pins --write`，再 `git add third_party/MesenGM`，把 gitlink 前移。
+3. `node scripts/setup.mjs` 重建，`node scripts/verify.mjs` 核验工具面。
+
+fork 内提交不属于本仓库的历史，因此**改了什么必须同时落到 `docs/`**：工具行为变化会改变取证结论，只改 fork 不写文档，下一个人读到的仍是旧行为。
+
+`6502bench` 保持第三方身份：需要改它时先提上游或在本机打补丁并注明，不复用「我们的 fork」这套说法。
 
 ## 许可边界
 
@@ -39,7 +51,7 @@ node scripts/verify.mjs
 
 ## 更新策略
 
-pin 指向两个上游的 `master` 分支提交，升级是显式动作，不是自动跟随：
+pin 是显式动作，不是自动跟随。MesenGM 的提交来自本项目的 fork，6502bench 的提交来自第三方：
 
 ```powershell
 git submodule update --remote third_party/MesenGM third_party/6502bench
@@ -55,7 +67,8 @@ node scripts/rea-fc.mjs test
 
 ## 不做什么
 
-- 不 fork 上游到本仓库内部。
-- 不在本仓库打补丁再声称「pin 等于上游」；确需改上游时，先改上游仓再升级 pin。
+- 不在本仓库内复制工具源码；改动一律落在各自的仓库里，本仓库只记 pin。
+- 不在本仓库打补丁再声称「pin 等于上游」；MesenGM 改 fork 再升级 pin，6502bench 改上游再升级 pin。
+- 不让 pin 指向 fork 里推送不出去的提交：本地提交必须先推到 fork，否则 clone 下来的 submodule 无法检出。
 - 不把 `MCP_SERVER.md`、`docs/sgmanual/` 等工具手册复制进本仓库；它们随 submodule 更新，复制会漂移。
 - 不把 ROM、存档、构建产物纳入版本控制。

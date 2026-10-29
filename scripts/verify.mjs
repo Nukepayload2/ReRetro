@@ -6,7 +6,7 @@ import { heading, parseArgs, rows, status } from './lib/cli.mjs';
 import { checkNodeVersion, displayPath, paths, readPins, relativePath } from './lib/config.mjs';
 import { describeInputPorts, inspectNativeDependencies, readSettings, resolveHomeFolder } from './lib/emulator.mjs';
 import { callBridgeTools, compareTools, readToolSurface, resultText } from './lib/mcp.mjs';
-import { locateTools, submoduleState } from './lib/tools.mjs';
+import { locateTools, pinRemoteState, submoduleState } from './lib/tools.mjs';
 
 const args = parseArgs(process.argv.slice(2));
 const json = args.flag('json');
@@ -30,6 +30,7 @@ main();
 
 function main() {
   report.submodules = gateSubmodules();
+  gatePinRemote(report.submodules.rows);
   report.tools = locateTools({ mesenDir: args.get('mesen-dir'), benchDir: args.get('bench-dir') });
   report.handshake = gateBridge();
   report.emulator = gateEmulator();
@@ -69,6 +70,42 @@ function gateSubmodules() {
     ? 'no uncommitted changes in the submodule checkouts'
     : dirty.map(row => `${row.path} has ${row.dirty} uncommitted change(s); commit them in the fork and record the pin, or the binaries do not match the pin`).join('; '));
   return { source: state.source, rows: rowsOut };
+}
+
+/**
+ * Prove each pin is a commit its remote can serve.
+ *
+ * A pin that exists only in this checkout breaks `git submodule update --init` for everyone
+ * else, and the other gates cannot see it: the checkout matches the pin, the gitlink matches
+ * the pin, and the binaries match the checkout. `--fetch` turns the answer from "what the
+ * last fetch saw" into "what the remote serves now", which needs network.
+ */
+function gatePinRemote(rows) {
+  const fetch = args.flag('fetch');
+  const messages = [];
+  let kind = 'pass';
+  for (const row of rows) {
+    if (!row.present) {
+      continue;
+    }
+    const state = pinRemoteState({ dir: resolve(paths.root, row.path), commit: row.pinned, fetch });
+    if (state.state === 'served') {
+      messages.push(`${row.path}: ${row.pinned.slice(0, 12)} is on ${state.branches.join(', ')}`);
+    } else if (state.state === 'unmeasured') {
+      // A tarball checkout or a submodule cloned without remote refs has nothing to compare
+      // against; calling that "unpushed" would be the false negative this gate exists to avoid.
+      messages.push(`${row.path}: ${state.reason}; rerun with --fetch to compare against ${row.url}`);
+    } else if (state.state === 'unpushed') {
+      kind = 'warn';
+      messages.push(`${row.path}: ${row.pinned.slice(0, 12)} is on no fetched branch — push it to ${row.url} (rerun with --fetch if the refs are stale)`);
+    } else {
+      kind = 'warn';
+      messages.push(`${row.path}: cannot ask ${row.url} (${state.reason})`);
+    }
+  }
+  if (messages.length > 0) {
+    pushGate('pin-remote', kind, messages.join('; '));
+  }
 }
 
 function gateBridge() {

@@ -335,3 +335,48 @@ export function existingBridgeCandidates() {
     .filter(root => existsSync(root))
     .flatMap(root => readdirSync(root).filter(name => name === 'MCPServer.exe').map(name => join(root, name)));
 }
+
+/**
+ * Whether a pinned commit is one the submodule's remote serves.
+ *
+ * A pin nobody else can fetch breaks `git submodule update --init` for everyone, and no other
+ * check notices: the checkout matches the pin, the gitlink matches the pin, and the binaries
+ * match the checkout. The only local evidence of what the remote serves is its
+ * remote-tracking refs, and `git submodule update --init` does not create them — it leaves a
+ * detached HEAD — so an empty ref list means "not measurable", not "unpushed". `fetch` turns
+ * that into a real answer at the cost of a network round trip.
+ */
+export function pinRemoteState({ dir, commit, fetch = false, timeoutMs = 60_000 } = {}) {
+  if (fetch) {
+    // A fetch must never wait on a credential prompt: this runs inside a verification pass,
+    // where blocking looks like a hung tool. An unreachable remote is reported, not retried.
+    const fetched = run('git', ['-C', dir, 'fetch', '--quiet', 'origin'], {
+      timeoutMs,
+      env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_ASKPASS: process.platform === 'win32' ? '' : 'echo' },
+    });
+    if (!fetched.ok) {
+      return {
+        state: 'unknown',
+        branches: [],
+        reason: fetched.timedOut ? 'fetch timed out' : `fetch failed: ${(fetched.stderr || fetched.stdout || '').trim().split(/\r?\n/).at(-1) ?? 'unknown error'}`,
+      };
+    }
+  }
+
+  const refs = git(['-C', dir, 'for-each-ref', '--format=%(refname)', 'refs/remotes'], { timeoutMs });
+  const remoteRefs = refs.ok ? refs.stdout.split(/\r?\n/).map(line => line.trim()).filter(Boolean) : [];
+  if (remoteRefs.length === 0) {
+    return { state: 'unmeasured', branches: [], reason: 'no remote-tracking refs' };
+  }
+
+  const contains = git(['-C', dir, 'branch', '-r', '--contains', commit], { timeoutMs });
+  const branches = contains.ok
+    ? contains.stdout
+      .split(/\r?\n/)
+      .map(line => line.trim())
+      .filter(line => line && !line.includes('->'))
+    : [];
+  return branches.length > 0
+    ? { state: 'served', branches, reason: null }
+    : { state: 'unpushed', branches: [], reason: 'the commit is on no fetched branch' };
+}

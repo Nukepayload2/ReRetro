@@ -137,6 +137,17 @@
 | 验证 | 对同一段 `LDA $xxxx / CMP #$04 / BNE / STY / RTS` 取 `line`：修复后 `operand` 分别为 `$03D8`、`#$04`、跳转目标、`$0390`、空（`tests/sourcegen.test.mjs`） |
 | 绕行 | 无（已修） |
 
+## TI-012 本地路径当 git 远端时命令不返回
+
+| 字段 | 内容 |
+|------|------|
+| 症状 | `git ls-remote ./x.git`、`git fetch origin <本地路径>` 这类命令一直不返回，无输出也无退出码；同一时刻对 https 远端的 `git fetch` 秒回 |
+| 证据 | 实锤（症状）：本地路径的 `ls-remote` 与 `fetch` 在 60 s / 8 s 内无任何输出，只能强杀；对 https 远端同样的 `fetch` 立即完成。原因推测：git 的本地传输会派生 `upload-pack` 之类的子进程并通过管道通信，本运行环境的管道限制让它卡住 |
+| 影响 | 把本地路径写进测试夹具或核验脚本会让整轮挂死；被强杀的 git 会留下进程，占住仓库句柄，之后删除目录报 `EPERM`、写索引报 `unable to write new index file` |
+| 状态 | 第三方（git 在本运行环境下的行为，不在本仓库代码内） |
+| 验证 | `tests/pin.test.mjs` 的失败分支刻意指向一个非仓库目录（git 不打开传输即拒绝），不依赖本地路径远端，因此这条不会拖住测试 |
+| 绕行 | 要远端证据就用 https URL；纯本地判断用 `for-each-ref`、`branch -r --contains`、`cat-file -e`，不要 fetch。挂死之后先清进程：`Get-Process git* \| Stop-Process -Force` |
+
 ## 记录规则
 
 - 新增条目：先有可复现判据，再写影响；没有判据的只写「推测」。

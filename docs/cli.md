@@ -40,6 +40,7 @@ node scripts/rea-fc.mjs doctor [--live] [--rom <rom-path>] [--timeout <ms>] [--j
 |----|----------|------------------|
 | 运行时 | Node 版本、平台 | 升级 Node |
 | 仓库与 submodule | 两个工具仓是否检出、是否在 pin 上 | `git submodule update --init --recursive`，再跑 `pins` |
+| pin 可获取 | pin 的提交是否在其 remote 的分支上：别人 `git submodule update --init` 能不能拿到 | 把 fork 里那个提交推上去；远端引用过期时加 `--fetch` 重查 |
 | 工具二进制 | `MCPServer.exe`、`Mesen.exe`、`SourceGen.exe` 是否定位到 | `setup`，或 `--mesen-dir` 指向已有安装 |
 | 模拟器初始化 | profile 目录、`settings.json` 是否可解析、原生库是否齐全、手柄端口是否配置 | `emulator provision`，判据见 [emulator-init](emulator-init.md) |
 | 构建工具链 | MSBuild、dotnet、.NET Framework 4.8.1 pack | 安装对应 VS 工作负载与 SDK |
@@ -48,7 +49,9 @@ node scripts/rea-fc.mjs doctor [--live] [--rom <rom-path>] [--timeout <ms>] [--j
 | 实时探测（`--live`） | `get_rom_info`、`debugger_status`、一次内存读 | 打开 Mesen、载入 ROM，或加 `--rom` |
 | 输入端口（`--live`） | `clear_input` 返回的 `available_controllers` | 端口为 `None` 时用 `emulator provision` 配置 |
 
-退出码：`0` 各层通过，`2` 仓库正常但缺环境（Mesen 没开、缓存没生成），`1` 有需要人处理的问题。`--json` 输出每一层的 `status`、`detail`、`remedy` 与汇总的 `nextActions`。
+退出码：`0` 各层通过，`2` 仓库正常但缺环境（Mesen 没开、缓存没生成、pin 不在远端分支上），`1` 有需要人处理的问题。`--json` 输出每一层的 `status`、`detail`、`remedy` 与汇总的 `nextActions`。
+
+`pin-remote` 默认只用本地已有的 remote 引用判断，不发网络请求；`git submodule update --init` 不创建 remote 引用，所以「查不到引用」记为「未测量」而不是「没推」。加 `--fetch` 会先 `git fetch origin`，把结论变成「远端现在提供什么」，网络不可达时该层降级为警告。
 
 ## `verify`
 

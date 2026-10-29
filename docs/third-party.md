@@ -15,7 +15,7 @@
 
 `MesenGM` 的地址是本项目的 fork，不是第三方上游。调试桥的行为是本仓库交付物的一部分——事件历史、断点命中原因、`run_frames` 的返回字段都在这里定义——所以这些改动直接提交到该 fork，再升级 pin：
 
-1. 在 `third_party/MesenGM` 里提交，推到 fork 的分支；pin 指向的提交必须在该 fork 里可取，否则别人的 `git submodule update` 拿不到它。
+1. 在 `third_party/MesenGM` 里提交，推到 fork 的分支；pin 指向的提交必须在该 fork 里可取，否则别人的 `git submodule update` 拿不到它。`verify.mjs` 的 `pin-remote` 层查这一点，加 `--fetch` 才会发网络请求。
 2. `node scripts/rea-fc.mjs pins --write`，再 `git add third_party/MesenGM`，把 gitlink 前移。
 3. `node scripts/setup.mjs` 重建，`node scripts/verify.mjs` 核验工具面。
 

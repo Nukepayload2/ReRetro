@@ -8,7 +8,7 @@
 | [installation](installation.md) | 第一次在这台机器上跑起来：构建工具、注册调试桥、核验工具面。 |
 | [emulator-init](emulator-init.md) | 桥已应答但模拟器起不来、载不进 ROM 或收不到按键时：profile 目录、配置文件、原生库、手柄端口。 |
 | [cli](cli.md) | 要查命令参数、退出码、输出字段时。 |
-| [tool-issues](tool-issues.md) | 工具报错、报「没有」、或语义容易误读时：已确认的缺陷、假阴性与绕行规则。 |
+| [tool-issues](tool-issues.md) | 工具报错、报「没有」、或语义容易误读时：仍未修的缺陷与绕行规则。修掉的条目不留档。 |
 | [third-party](third-party.md) | 关心 submodule pin、许可、升级流程时。 |
 | [architecture](architecture.md) | 要改本仓库结构、加脚本或判断证据边界时。 |
 | [README](../README.md) | 只想知道这是什么、怎么四步跑起来。 |

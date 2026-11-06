@@ -16,7 +16,7 @@
 `MesenGM` 的地址是本项目的 fork，不是第三方上游。调试桥的行为是本仓库交付物的一部分——事件历史、断点命中原因、`run_frames` 的返回字段都在这里定义——所以这些改动直接提交到该 fork，再升级 pin：
 
 1. 在 `third_party/MesenGM` 里提交，推到 fork 的分支；pin 指向的提交必须在该 fork 里可取，否则别人的 `git submodule update` 拿不到它。`verify.mjs` 的 `pin-remote` 层查这一点，加 `--fetch` 才会发网络请求。
-2. `node scripts/rea-fc.mjs pins --write`，再 `git add third_party/MesenGM`，把 gitlink 前移。
+2. `node scripts/reretro.mjs pins --write`，再 `git add third_party/MesenGM`，把 gitlink 前移。
 3. `node scripts/setup.mjs` 重建，`node scripts/verify.mjs` 核验工具面。
 
 fork 内提交不属于本仓库的历史，因此**改了什么必须同时落到 `docs/`**：工具行为变化会改变取证结论，只改 fork 不写文档，下一个人读到的仍是旧行为。
@@ -40,7 +40,7 @@ pin 的 MesenGM 提交（Nukepayload2 fork）注册 23 个工具：上游 16 个
 ```powershell
 git -C third_party/MesenGM fetch
 git -C third_party/MesenGM checkout <new-commit>
-node scripts/rea-fc.mjs pins --write
+node scripts/reretro.mjs pins --write
 git add third_party/MesenGM
 git commit -m "chore: bump MesenGM pin"
 node scripts/setup.mjs
@@ -55,12 +55,12 @@ pin 是显式动作，不是自动跟随。MesenGM 的提交来自本项目的 f
 
 ```powershell
 git submodule update --remote third_party/MesenGM third_party/6502bench
-node scripts/rea-fc.mjs pins --write
+node scripts/reretro.mjs pins --write
 git add third_party/MesenGM third_party/6502bench
 git commit -m "chore: bump tool submodules"
 node scripts/setup.mjs
 node scripts/verify.mjs
-node scripts/rea-fc.mjs test
+node scripts/reretro.mjs test
 ```
 
 工具行为变化会改变取证结论，升级后必须重跑核验；只更新 pin 而不重跑核验，等于把「源码改了」当成「行为已验证」。

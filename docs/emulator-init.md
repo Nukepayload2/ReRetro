@@ -18,7 +18,7 @@
 一条命令看完四项：
 
 ```powershell
-node scripts/rea-fc.mjs emulator inspect --rom <rom>
+node scripts/reretro.mjs emulator inspect --rom <rom>
 ```
 
 `--live` 追加一次 `clear_input`，用桥自己返回的 `available_controllers` 复核端口；退出码 `0` 全通过、`2` 有缺项、`1` 连模拟器可执行文件都没定位到。
@@ -28,7 +28,7 @@ node scripts/rea-fc.mjs emulator inspect --rom <rom>
 ### 步骤 1：定位可执行文件与 profile 目录
 
 ```powershell
-node scripts/rea-fc.mjs emulator inspect --json
+node scripts/reretro.mjs emulator inspect --json
 ```
 
 模拟器的 profile 目录按下列顺序决定，顺序本身是可判定的规则：
@@ -62,7 +62,7 @@ node scripts/rea-fc.mjs emulator inspect --json
 
 2. **补齐原生库。** 这些库由模拟器从 profile 目录加载，不是从可执行文件目录加载；可执行文件目录通常已经有它们，复制即可。从源码构建的产物可能整包都不含这些库：构建脚本在编译前打包依赖归档，首次构建时输出目录里还没有这几个文件，复制失败被忽略，归档里就少了它们。判据是可执行文件目录里有、profile 目录里没有。
 
-   `node scripts/rea-fc.mjs emulator provision` 会做这次复制；重建工具后仍缺，说明构建产物本身不完整，重新构建后再跑一次。
+   `node scripts/reretro.mjs emulator provision` 会做这次复制；重建工具后仍缺，说明构建产物本身不完整，重新构建后再跑一次。
 
 3. **写最小的 `settings.json`。** 该文件存在就不会进首次运行向导，其余配置项缺失时按默认值补齐。判据是重启后进程存活、且没有弹出需要人点的窗口。
 
@@ -94,7 +94,7 @@ node scripts/rea-fc.mjs emulator inspect --json
 ### 步骤 6：一条命令补齐（可选）
 
 ```powershell
-node scripts/rea-fc.mjs emulator provision --rom <rom>
+node scripts/reretro.mjs emulator provision --rom <rom>
 ```
 
 写 `settings.json`、补端口、按需复制原生库，输出下一步命令。只改可执行文件所在目录与 profile 目录下的配置与库文件；不写 ROM、不写存档、不碰 submodule 的跟踪文件。
@@ -112,7 +112,7 @@ node scripts/rea-fc.mjs emulator provision --rom <rom>
 
 ## 与其它层的关系
 
-- 本文只解决「模拟器能用」。桥的工具面与握手归 `node scripts/verify.mjs`；分层诊断归 `node scripts/rea-fc.mjs doctor`。
+- 本文只解决「模拟器能用」。桥的工具面与握手归 `node scripts/verify.mjs`；分层诊断归 `node scripts/reretro.mjs doctor`。
 - `verify` 与 `doctor` 都包含模拟器层：`emulator-setup`（profile、配置文件、原生库、端口）与 `input-probe`（实时端口）。握手通过而模拟器层降级，是「桥绿但取不到证据」的典型状态。
 - 任一层降级时，ROM 行为结论一律标 `推测`；补齐并重跑核验后才可以升级为 `实锤`。
 - 环境事实会随会话失效：换模拟器构建、换 profile 目录、重启模拟器后都要重新核验，不能沿用上一轮的结论。

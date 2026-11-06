@@ -100,7 +100,7 @@ function inspect() {
     status('ok', 'ready', '模拟器可以启动，桥可以送按键');
   } else if (exitCode === 2) {
     status('warn', 'degraded', '模拟器可能起不来或收不到按键；按下面的下一步补');
-    status('info', 'next', 'node scripts/rea-fc.mjs emulator provision');
+    status('info', 'next', 'node scripts/reretro.mjs emulator provision');
   } else {
     status('fail', 'missing', '没有模拟器可执行文件');
     status('info', 'next', 'node scripts/setup.mjs');
@@ -153,8 +153,8 @@ function provision() {
 
   heading('下一步');
   status('info', '1', `启动：${result.launchCommand}`);
-  status('info', '2', 'node scripts/rea-fc.mjs verify --live --rom <rom>');
-  status('info', '3', 'node scripts/rea-fc.mjs doctor --live');
+  status('info', '2', 'node scripts/reretro.mjs verify --live --rom <rom>');
+  status('info', '3', 'node scripts/reretro.mjs doctor --live');
   process.exit(result.ok ? 0 : 1);
 }
 

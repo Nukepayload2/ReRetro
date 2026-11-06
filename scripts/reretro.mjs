@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /**
- * Entry point for `npx rea-fc` / `npm run rea-fc -- <command>`.
+ * Entry point for `npx reretro` / `npm run reretro -- <command>`.
  *
  * Each command stays a standalone script so it can also be run directly:
  * `node scripts/verify.mjs`.
@@ -63,9 +63,9 @@ function main() {
 }
 
 function usage() {
-  console.log(`rea-fc — a standalone NES/6502 reversing kit
+  console.log(`reretro — a standalone NES/6502 reversing kit
 
-usage: rea-fc <command> [options]
+usage: reretro <command> [options]
 
 commands:`);
   for (const [name, entry] of Object.entries(COMMANDS)) {
@@ -73,13 +73,13 @@ commands:`);
   }
   console.log(`
 examples:
-  node scripts/rea-fc.mjs setup
-  node scripts/rea-fc.mjs verify --live
-  node scripts/rea-fc.mjs emulator inspect --rom roms/game.nes
-  node scripts/rea-fc.mjs emulator provision --rom roms/game.nes
-  node scripts/rea-fc.mjs info roms/game.nes
-  node scripts/rea-fc.mjs patch --rom roms/game.nes --out out/game.patched.nes --edit 0x15A2:EA:AD --ips out/game.ips
-  node scripts/rea-fc.mjs cheat encode --address 0xC0A0 --value 0x0A --compare 0x03
+  node scripts/reretro.mjs setup
+  node scripts/reretro.mjs verify --live
+  node scripts/reretro.mjs emulator inspect --rom roms/game.nes
+  node scripts/reretro.mjs emulator provision --rom roms/game.nes
+  node scripts/reretro.mjs info roms/game.nes
+  node scripts/reretro.mjs patch --rom roms/game.nes --out out/game.patched.nes --edit 0x15A2:EA:AD --ips out/game.ips
+  node scripts/reretro.mjs cheat encode --address 0xC0A0 --value 0x0A --compare 0x03
 
 docs: docs/workflow.md, docs/installation.md, docs/cli.md`);
 }

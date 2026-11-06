@@ -16,7 +16,7 @@ NES 逆向需要两件工具：静态反汇编（SourceGen）和动态调试（M
 ## 目录
 
 ```text
-rea-fc/
+reretro/
   README.md                 仓库入口：它是什么、怎么跑起来
   AGENTS.md                 在本仓库工作的智能体的约定
   docs/
@@ -31,7 +31,7 @@ rea-fc/
     SKILL.md                智能体作业单
     references/             工具面与补丁/金手指速查
   scripts/
-    rea-fc.mjs              子命令入口
+    reretro.mjs             子命令入口
     setup.mjs               构建 / 定位 / 写客户端配置
     verify.mjs              门槛：submodule、桥、握手、模拟器层、实时探测
     diagnose.mjs            逐层诊断与下一步

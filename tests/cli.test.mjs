@@ -7,14 +7,14 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { makeInesImage, setPrgByte } from './helpers/rom-fixture.mjs';
 
-const CLI = fileURLToPath(new URL('../scripts/rea-fc.mjs', import.meta.url));
+const CLI = fileURLToPath(new URL('../scripts/reretro.mjs', import.meta.url));
 
 function runCli(args) {
   return spawnSync(process.execPath, [CLI, ...args], { encoding: 'utf8' });
 }
 
 test('the dispatcher accepts a positional ROM for info', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'rea-fc-cli-'));
+  const dir = mkdtempSync(join(tmpdir(), 'reretro-cli-'));
   try {
     const rom = makeInesImage({ prgBanks: 2, chrBanks: 1 });
     setPrgByte(rom, 0x0000, 0x4c);

@@ -21,7 +21,7 @@ function gitIn(dir, args) {
  * check can be exercised without a network or a real submodule.
  */
 function withScratchRepo(run) {
-  const dir = mkdtempSync(join(tmpdir(), 'rea-fc-pin-'));
+  const dir = mkdtempSync(join(tmpdir(), 'reretro-pin-'));
   try {
     gitIn(dir, ['init', '--quiet']);
     gitIn(dir, ['config', 'user.email', 'test@example.invalid']);
@@ -75,7 +75,7 @@ test('a fetch that cannot be performed degrades to unknown', { skip: SKIP }, () 
   // transport. A local-path remote would be the obvious way to write this, but local transport
   // hangs in this environment (see TI-012), which is exactly the kind of block the check is
   // meant to report rather than join.
-  const dir = mkdtempSync(join(tmpdir(), 'rea-fc-pin-norepo-'));
+  const dir = mkdtempSync(join(tmpdir(), 'reretro-pin-norepo-'));
   try {
     const state = pinRemoteState({ dir, commit: '0'.repeat(40), fetch: true, timeoutMs: 20_000 });
     assert.equal(state.state, 'unknown');

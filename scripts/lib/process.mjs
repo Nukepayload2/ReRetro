@@ -13,7 +13,7 @@ import { join } from 'node:path';
 export function run(command, args = [], options = {}) {
   const { cwd, env, timeoutMs = 120_000, input } = options;
 
-  const workDir = mkdtempSync(join(tmpdir(), 'rea-fc-run-'));
+  const workDir = mkdtempSync(join(tmpdir(), 'reretro-run-'));
   const stdoutPath = join(workDir, 'stdout.log');
   const stderrPath = join(workDir, 'stderr.log');
 

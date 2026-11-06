@@ -86,7 +86,7 @@ export function runBridgeBatch({ command, messages, timeoutMs = DEFAULT_TIMEOUT_
     throw new McpError('the bridge executable does not exist', { command });
   }
 
-  const workDir = mkdtempSync(join(tmpdir(), 'rea-fc-mcp-'));
+  const workDir = mkdtempSync(join(tmpdir(), 'reretro-mcp-'));
   const inputPath = join(workDir, 'stdin.jsonl');
   const outputPath = join(workDir, 'stdout.jsonl');
   const errorPath = join(workDir, 'stderr.log');
@@ -214,7 +214,7 @@ export function readToolSurface({ command, timeoutMs = DEFAULT_TIMEOUT_MS, cwd }
         params: {
           protocolVersion: '2025-06-18',
           capabilities: {},
-          clientInfo: { name: 'rea-fc', version: '0.1.0' },
+          clientInfo: { name: 'reretro', version: '0.1.0' },
         },
       },
       { jsonrpc: '2.0', method: 'notifications/initialized' },
@@ -264,7 +264,7 @@ export function callBridgeTools({ command, calls, timeoutMs = DEFAULT_TIMEOUT_MS
       params: {
         protocolVersion: '2025-06-18',
         capabilities: {},
-        clientInfo: { name: 'rea-fc', version: '0.1.0' },
+        clientInfo: { name: 'reretro', version: '0.1.0' },
       },
     },
     { jsonrpc: '2.0', method: 'notifications/initialized' },

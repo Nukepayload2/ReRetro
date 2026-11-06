@@ -79,7 +79,7 @@ function locateDriver() {
   const candidates = [
     { path: join(paths.root, 'tools', 'SourceGenCli', 'bin', 'Release', 'SourceGenCli.exe'), source: 'repo-build' },
     { path: join(paths.out, 'SourceGenCli', 'SourceGenCli.exe'), source: 'out' },
-    { path: process.env.REA_FC_DRIVER ?? '', source: 'environment' },
+    { path: process.env.RERETRO_DRIVER ?? '', source: 'environment' },
   ];
   for (const candidate of candidates) {
     if (candidate.path && existsSync(candidate.path)) {
@@ -94,8 +94,8 @@ function locateMesen(mesenDir) {
   if (mesenDir) {
     candidates.push({ dir: mesenDir, source: 'option' });
   }
-  if (process.env.REA_FC_MESEN_DIR) {
-    candidates.push({ dir: process.env.REA_FC_MESEN_DIR, source: 'environment' });
+  if (process.env.RERETRO_MESEN_DIR) {
+    candidates.push({ dir: process.env.RERETRO_MESEN_DIR, source: 'environment' });
   }
   candidates.push({ dir: join(paths.mesen, 'bin', 'win-x64', 'Release'), source: 'submodule-build' });
   candidates.push({ dir: join(paths.mesen, 'bin', 'win-x64', 'Debug'), source: 'submodule-build' });
@@ -121,8 +121,8 @@ function locateBench(benchDir) {
   if (benchDir) {
     candidates.push({ dir: benchDir, source: 'option' });
   }
-  if (process.env.REA_FC_BENCH_DIR) {
-    candidates.push({ dir: process.env.REA_FC_BENCH_DIR, source: 'environment' });
+  if (process.env.RERETRO_BENCH_DIR) {
+    candidates.push({ dir: process.env.RERETRO_BENCH_DIR, source: 'environment' });
   }
   candidates.push({ dir: join(paths.bench, 'SourceGen', 'bin', 'Release'), source: 'submodule-build' });
   candidates.push({ dir: join(paths.bench, 'SourceGen', 'bin', 'Debug'), source: 'submodule-build' });

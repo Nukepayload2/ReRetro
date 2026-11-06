@@ -1,5 +1,5 @@
 {
-  "name": "rea-fc",
+  "name": "reretro",
   "version": "0.1.0",
   "description": "Standalone NES/6502 reversing kit: a workflow, a CLI, and MesenGM plus 6502bench pinned as submodules.",
   "license": "GPL-3.0-only",
@@ -22,7 +22,7 @@
     "node": ">=22.19.0"
   },
   "bin": {
-    "rea-fc": "scripts/rea-fc.mjs"
+    "reretro": "scripts/reretro.mjs"
   },
   "files": [
     "scripts",
@@ -35,7 +35,7 @@
     "THIRD_PARTY_NOTICES.md"
   ],
   "scripts": {
-    "rea-fc": "node scripts/rea-fc.mjs",
+    "reretro": "node scripts/reretro.mjs",
     "setup": "node scripts/setup.mjs",
     "doctor": "node scripts/diagnose.mjs",
     "verify": "node scripts/verify.mjs",

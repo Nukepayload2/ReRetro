@@ -24,9 +24,9 @@
 node --test tests/            # 全部测试
 node scripts/check-docs.mjs   # 自检：占位符、外部依赖、本机路径、断链、pin 一致性
 node scripts/setup.mjs        # 构建/定位工具并写客户端配置
-node scripts/rea-fc.mjs doctor # 逐层诊断，输出断点与下一步
+node scripts/reretro.mjs doctor # 逐层诊断，输出断点与下一步
 node scripts/verify.mjs       # 桥与工具面证据
-node scripts/rea-fc.mjs pins  # 对比或记录 submodule pin（升级后加 --write）
+node scripts/reretro.mjs pins  # 对比或记录 submodule pin（升级后加 --write）
 ```
 
 工具面以 pinned 提交为准（当前 23 个）；`scripts/lib/mcp.mjs` 的 `CORE_MESEN_TOOLS` 是必须集，`OPTIONAL_MESEN_TOOLS` 只留给本地构建多出的工具。核验只要求核心集，并把多出来的工具单独列出；改工具集合时两处一起改。

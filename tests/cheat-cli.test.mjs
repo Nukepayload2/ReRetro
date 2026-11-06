@@ -14,7 +14,7 @@ function runCli(args) {
 }
 
 function withRom(build, run) {
-  const dir = mkdtempSync(join(tmpdir(), 'rea-fc-cheat-'));
+  const dir = mkdtempSync(join(tmpdir(), 'reretro-cheat-'));
   const path = join(dir, 'game.nes');
   writeFileSync(path, build());
   try {

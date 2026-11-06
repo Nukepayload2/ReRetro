@@ -15,7 +15,7 @@
 ## 补丁命令
 
 ```powershell
-node scripts/rea-fc.mjs patch `
+node scripts/reretro.mjs patch `
   --rom roms/game.nes `
   --out out/game.patched.nes `
   --edit 0x15A2:EA:AD:skip-decrement `
@@ -53,7 +53,7 @@ node scripts/rea-fc.mjs patch `
 - 校验值唯一性证据：
 
 ```powershell
-node scripts/rea-fc.mjs cheat check --rom <rom> --address <cpu-address>
+node scripts/reretro.mjs cheat check --rom <rom> --address <cpu-address>
 ```
 
 输出每个 PRG bank 在该偏移的原始字节；只有目标 bank 等于校验值才可用。

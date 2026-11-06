@@ -22,7 +22,7 @@ metadata:
 - 冷启动验证记录（写入点、写入值、重复次数、回归项）。
 - 回滚说明与未决风险，逐条标注 `实锤` / `推测` / `猜测`。
 
-## 0. 先读任务账本
+## 任务账本
 
 上下文被压缩、换会话、或连续两次在同一处返工时，第一件事是读 `tmp/ledger.md`（本地草稿区，git-ignored），再动手。
 
@@ -42,12 +42,12 @@ metadata:
 
 ```powershell
 node scripts/verify.mjs
-node scripts/rea-fc.mjs doctor --live --rom <rom>
+node scripts/reretro.mjs doctor --live --rom <rom>
 ```
 
 - 桥必须以 MCP 服务器形态注册进当前客户端，取证走客户端托管的常驻 stdio 会话；仓库脚本里的批处理客户端只做核验（每批拉起一个桥进程，单次调用约 1.6 s），不要用它逐帧轮询。
 - 只有 `bridge-handshake` 通过，才允许做动态取证；通过只证明工具面可达，不证明目标 ROM 已载入。
-- 握手不覆盖模拟器：模拟器层（profile 目录、`settings.json`、原生库、手柄端口）与 `input-probe` 也要过。哪一层没过按 `docs/emulator-init.md` 补齐，`node scripts/rea-fc.mjs emulator provision` 一次写配置、补端口、复制原生库。
+- 握手不覆盖模拟器：模拟器层（profile 目录、`settings.json`、原生库、手柄端口）与 `input-probe` 也要过。哪一层没过按 `docs/emulator-init.md` 补齐，`node scripts/reretro.mjs emulator provision` 一次写配置、补端口、复制原生库。
 - 工具清单要 Mesen 至少启动一次才有缓存；报「Mesen is not running」时先打开 Mesen，再重跑核验。
 - 要证明「载入的是目标 ROM」，用 `node scripts/verify.mjs --live --rom <rom>`；`--rom` 只比对 `rom_path`。
 - `run_frames` 报 `timed_out` 且 `frames_elapsed` 为 `0` 时原样重试，不要先释放按键：按键会被释放吞掉，表现成游戏不响应输入。
@@ -56,7 +56,7 @@ node scripts/rea-fc.mjs doctor --live --rom <rom>
 ## 2. 固定基线
 
 ```powershell
-node scripts/rea-fc.mjs info <rom>
+node scripts/reretro.mjs info <rom>
 ```
 
 记录 PRG/CHR 大小、mapper、镜像方式、SHA256、文件大小；复制到只读基线；补丁一律写到新文件。把目标改写成含变量、写入点、值、观测方式的可验收断言，不写「效果变强」。
@@ -64,7 +64,7 @@ node scripts/rea-fc.mjs info <rom>
 ## 3. 静态定位（SourceGen）
 
 - 在 SourceGen 里建可复现工程（CPU 选型、入口点、分析范围），不手工拼反汇编。
-- `SourceGen.exe` 只接受一个参数，且必须是已有的 `.dis65` 工程：没有 headless 模式，从 ROM 建工程、分析、导出汇编都只能走界面。命令行分析改用 `node scripts/rea-fc.mjs sourcegen`（参数见 `docs/cli.md`），它把 PRG bank 切片后交给同一份分析代码；两者都不需要时就退回调试桥的 `get_disassembly`，并在交付里注明「无工程、无符号、无交叉引用」。
+- `SourceGen.exe` 只接受一个参数，且必须是已有的 `.dis65` 工程：没有 headless 模式，从 ROM 建工程、分析、导出汇编都只能走界面。命令行分析改用 `node scripts/reretro.mjs sourcegen`（参数见 `docs/cli.md`），它把 PRG bank 切片后交给同一份分析代码；两者都不需要时就退回调试桥的 `get_disassembly`，并在交付里注明「无工程、无符号、无交叉引用」。
 - 给目标 bank 的例程、数据表、RAM 变量建符号，符号名要能直接用于断点与补丁脚本。
 - 用交叉引用视图找出所有读取者、写入者、初始化者、每帧更新者。
 - 导出汇编做字节环回：装配结果与原 PRG 逐字节一致，否则边界划分有误。
@@ -87,7 +87,7 @@ node scripts/rea-fc.mjs info <rom>
 ## 6. 生成补丁
 
 ```powershell
-node scripts/rea-fc.mjs patch --rom <rom> --out <patched> --edit <offset>:<old>:<new>:<note> --ips <file>
+node scripts/reretro.mjs patch --rom <rom> --out <patched> --edit <offset>:<old>:<new>:<note> --ips <file>
 ```
 
 脚本会断言原字节、写入、读回、给出前后 SHA256，并拒绝覆盖原 ROM。钩子自身要满足：`JMP` 落在指令边界、代码洞同 bank 且连续 `FF`、保留被替换指令语义、分支偏移重算、跳回原指令的下一条、栈平衡。
@@ -95,8 +95,8 @@ node scripts/rea-fc.mjs patch --rom <rom> --out <patched> --edit <offset>:<old>:
 金手指：
 
 ```powershell
-node scripts/rea-fc.mjs cheat check --rom <rom> --address <cpu-address>
-node scripts/rea-fc.mjs cheat encode --address <cpu> --value <v> --compare <c>
+node scripts/reretro.mjs cheat check --rom <rom> --address <cpu-address>
+node scripts/reretro.mjs cheat encode --address <cpu> --value <v> --compare <c>
 ```
 
 ## 7. 冷启动验收

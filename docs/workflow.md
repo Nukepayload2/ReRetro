@@ -53,15 +53,15 @@
 
 1. `node scripts/setup.mjs` 检查构建先决、构建 MesenGM 与 6502bench，并写出客户端注册条目到 `out/`。
 2. 把 `out/client-setup.md` 里的条目加进 MCP 客户端。
-3. `node scripts/rea-fc.mjs emulator provision --rom <rom>` 让模拟器可启动、手柄端口可用；判定细节见 [emulator-init](emulator-init.md)。
+3. `node scripts/reretro.mjs emulator provision --rom <rom>` 让模拟器可启动、手柄端口可用；判定细节见 [emulator-init](emulator-init.md)。
 4. `node scripts/verify.mjs` 证明工具面存在：桥应答 `initialize` 与 `tools/list`，模拟器层与输入端口通过，`get_rom_info` 返回目标 ROM。
-5. `node scripts/rea-fc.mjs verify --live --breakpoint` 证明断点通道可用：栈页写断点必须让推帧提前停下并在事件里出现 `Breakpoint`。
+5. `node scripts/reretro.mjs verify --live --breakpoint` 证明断点通道可用：栈页写断点必须让推帧提前停下并在事件里出现 `Breakpoint`。
 
 第 5 步不通过时，写断点取证没有依据，写入者改用静态交叉引用；不要拿「设了断点没反应」当成「变量没被写」。submodule 有未提交改动时 `verify` 报 `submodule-worktree` 降级：此时二进制不再等于 pin，重新 pin 或提交后再声称环境一致。
 
 注册成功不等于已生效，只有 `get_rom_info` 给出目标 ROM 才算接入完成。此步失败时不进入动态取证，按缺失处理，结论上限为「推测」。
 
-桥的握手只覆盖桥：它能应答、乃至报出完整工具面，而模拟器本身可能起不来、载不进 ROM 或收不到按键。这三件事分别由 profile 目录、`settings.json` 与手柄端口决定，判据与补齐步骤见 [emulator-init](emulator-init.md)。先用 `node scripts/rea-fc.mjs doctor --live` 看模拟器层与输入端口层是否通过，再开始取证。
+桥的握手只覆盖桥：它能应答、乃至报出完整工具面，而模拟器本身可能起不来、载不进 ROM 或收不到按键。这三件事分别由 profile 目录、`settings.json` 与手柄端口决定，判据与补齐步骤见 [emulator-init](emulator-init.md)。先用 `node scripts/reretro.mjs doctor --live` 看模拟器层与输入端口层是否通过，再开始取证。
 
 静态侧同样是门槛：先确认 `third_party/6502bench` 能打开目标 ROM、能导出汇编、能做字节环回，再开始解释机器码。参考工程不可用时，不要手写反汇编器、解析器或内存扫描器去顶替它。
 
@@ -69,7 +69,7 @@
 
 ### 固定基线与回滚点
 
-- 读取 iNES 头：PRG/CHR 大小、mapper、镜像方式。`node scripts/rea-fc.mjs info <rom>` 直接给出这些字段与 SHA256。
+- 读取 iNES 头：PRG/CHR 大小、mapper、镜像方式。`node scripts/reretro.mjs info <rom>` 直接给出这些字段与 SHA256。
 - 计算并记录原 ROM 的 SHA256、文件大小。
 - 复制原 ROM 到只读基线位置；补丁写入新文件。
 - 把目标改写成"可验证的断言"，例如：
@@ -81,7 +81,7 @@
 ### 静态定位
 
 - 用 `third_party/6502bench` 建立可复现的反汇编工程：CPU 选型、入口点、分析范围按该工程手册操作，不在会话里手工拼反汇编。
-- 无人值守时用 `node scripts/rea-fc.mjs sourcegen`：它把 PRG bank 切出来交给 `tools/SourceGenCli`（用 pin 的 `DisasmProject`/`CpuDef`/`Am65` 分析，不是自写反汇编器），给出覆盖率、按地址列指令、按操作数查引用，还能把结果存成 `.dis65` 供界面继续加工。
+- 无人值守时用 `node scripts/reretro.mjs sourcegen`：它把 PRG bank 切出来交给 `tools/SourceGenCli`（用 pin 的 `DisasmProject`/`CpuDef`/`Am65` 分析，不是自写反汇编器），给出覆盖率、按地址列指令、按操作数查引用，还能把结果存成 `.dis65` 供界面继续加工。
 - `SourceGen.exe` 只接受一个参数，且必须是已有的 `.dis65` 工程（`MainController.ProcessCommandLine` → `DoOpenFile` 走工程反序列化）：没有 headless 模式，也没有导出开关。从 ROM 建工程、交叉引用与导出汇编在界面里做；命令行侧用上面的驱动器，或在没有驱动器时退回调试桥的 `get_disassembly` 并在交付里注明「无符号、无交叉引用」，结论上限随之下调。
 - 反汇编目标 PRG bank，建立例程、数据表、RAM 变量的符号；符号命名要能直接用于补丁脚本和调试断点。
 - 对候选变量做交叉引用：优先用工程的引用视图，手写搜索结果只作补充；找出所有读取者、写入者、初始化者和每帧更新者。
@@ -146,7 +146,7 @@
 - 校验不匹配时码静默失效，不会报错。表现是"码写了但一点都不生效"，很容易被误判成地址算错。
 - 生效机制是"按 CPU 地址拦截读取"，不改 ROM 文件。因此同一个 CPU 地址在任何 bank 映射下都会被同样命中。
 - 固定 bank（通常 `$C000-$FFFF`）的码是安全的。可切换窗口（通常 `$8000-$BFFF`）的码会同时替换所有 bank 的同一偏移，必须带校验值。
-- 校验值的选法：先 dump 目标偏移在每个 PRG bank 的原始字节，确认只有目标 bank 等于该值。存在第二个 bank 同值时，这条码会连带改坏那段代码；换落点或改回 ROM 补丁，不要赌它不会被执行。`node scripts/rea-fc.mjs cheat encode --address <cpu> --value <v> --compare <c> --rom <rom>` 在编码时就把这份逐 bank 表、持有该值的 bank 列表与「目标 bank 当前字节是否等于校验值」一起给出；`cheat check` 用于单独复核。
+- 校验值的选法：先 dump 目标偏移在每个 PRG bank 的原始字节，确认只有目标 bank 等于该值。存在第二个 bank 同值时，这条码会连带改坏那段代码；换落点或改回 ROM 补丁，不要赌它不会被执行。`node scripts/reretro.mjs cheat encode --address <cpu> --value <v> --compare <c> --rom <rom>` 在编码时就把这份逐 bank 表、持有该值的 bank 列表与「目标 bank 当前字节是否等于校验值」一起给出；`cheat check` 用于单独复核。
 - 落点优先级：能在固定 bank 完成的改动，不要放到可切换区。等价效果有多个落点时，先选固定 bank 的那个。
 - 需要多字节改动时，每条码各自带各自的原值校验；只给其中一条加校验，其余仍然是全局覆盖。
 - 同一地址只允许一条码；给同一地址多条码时，只有后应用的那条生效。
@@ -157,7 +157,7 @@
 
 ### 生成最小补丁
 
-- 用脚本从原 ROM 生成补丁，不用手工十六进制编辑。`node scripts/rea-fc.mjs patch --rom <rom> --out <patched> --edit <offset>:<old>:<new>[:note] [--ips <file>]` 会校验原字节、写入、读回、给出前后 SHA256，并可按需导出 IPS。
+- 用脚本从原 ROM 生成补丁，不用手工十六进制编辑。`node scripts/reretro.mjs patch --rom <rom> --out <patched> --edit <offset>:<old>:<new>[:note] [--ips <file>]` 会校验原字节、写入、读回、给出前后 SHA256，并可按需导出 IPS。
 - 写入前断言原字节匹配；写入后读回并计算新 SHA256。
 - 试验期可以直接写 PRG 内存快速验证效果，但交付物必须来自脚本对原 ROM 的确定性写入；导出的 IPS 只作交付格式，不替代脚本。
 - 钩子必须满足：
@@ -279,8 +279,8 @@ file_offset = 0x10 + prg_bank_index * prg_bank_size + (cpu_address - bank_cpu_st
 
 | 症状 | 优先怀疑 | 检查动作 |
 |------|---------|---------|
-| 桥握手绿但一条命令都取不到证据 | 模拟器层或输入端口层没过 | `node scripts/rea-fc.mjs doctor --live`；按 [emulator-init](emulator-init.md) 补齐 |
-| 模拟器启动后立刻退出 | profile 目录缺原生库 | 看 stderr 的 `DllNotFoundException` 路径；`node scripts/rea-fc.mjs emulator provision` |
+| 桥握手绿但一条命令都取不到证据 | 模拟器层或输入端口层没过 | `node scripts/reretro.mjs doctor --live`；按 [emulator-init](emulator-init.md) 补齐 |
+| 模拟器启动后立刻退出 | profile 目录缺原生库 | 看 stderr 的 `DllNotFoundException` 路径；`node scripts/reretro.mjs emulator provision` |
 | `set_input` 报「Controller 0 is not available」 | 手柄端口是 `None` | `emulator provision` 后重启模拟器；再用 `clear_input` 的 `available_controllers` 复核 |
 | 按键送进去了但画面不动 | `run_frames` 返回 `timed_out` 且 `frames_elapsed` 为 `0`，按键被随后的释放吞掉 | 原样重试同一次推帧，拿到帧数后再释放按键 |
 | 实体/弹道在冷启动后不动 | 全局表或读取覆盖改到了初始化/状态变量 | 移除实验性 cheats；冷启动先测不带效果的移动；改用窄路径钩子 |

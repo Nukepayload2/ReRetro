@@ -28,7 +28,7 @@ function withTempDir(prefix, run) {
 }
 
 test('a settings file beside the executable makes the profile portable', () => {
-  withTempDir('rea-fc-home-', (root) => {
+  withTempDir('reretro-home-', (root) => {
     const exeDir = join(root, 'bin');
     const documentsDir = join(root, 'Documents');
     mkdirSync(exeDir, { recursive: true });
@@ -47,7 +47,7 @@ test('a settings file beside the executable makes the profile portable', () => {
 });
 
 test('the legacy documents folder wins only when it is the one with settings', () => {
-  withTempDir('rea-fc-home-', (root) => {
+  withTempDir('reretro-home-', (root) => {
     const exeDir = join(root, 'bin');
     const documentsDir = join(root, 'Documents');
     mkdirSync(exeDir, { recursive: true });
@@ -61,7 +61,7 @@ test('the legacy documents folder wins only when it is the one with settings', (
 });
 
 test('native dependency inspection names what is missing', () => {
-  withTempDir('rea-fc-native-', (root) => {
+  withTempDir('reretro-native-', (root) => {
     const empty = inspectNativeDependencies(root);
     assert.equal(empty.complete, false);
     assert.deepEqual(empty.missing, ['MesenCore', 'libSkiaSharp', 'libHarfBuzzSharp']);
@@ -76,7 +76,7 @@ test('native dependency inspection names what is missing', () => {
 });
 
 test('settings with a byte-order mark still parse', () => {
-  withTempDir('rea-fc-settings-', (root) => {
+  withTempDir('reretro-settings-', (root) => {
     writeFileSync(join(root, 'settings.json'), '\uFEFF{"Nes":{"Port1":{"Type":"NesController"}}}', 'utf8');
     const settings = readSettings(root);
     assert.equal(settings.exists, true);
@@ -123,7 +123,7 @@ test('the launch command quotes both the executable and the ROM', () => {
 });
 
 test('provisioning a portable profile writes a startable, input-capable install', () => {
-  withTempDir('rea-fc-provision-', (root) => {
+  withTempDir('reretro-provision-', (root) => {
     const exeDir = join(root, 'bin');
     mkdirSync(exeDir, { recursive: true });
     for (const name of ['MesenCore', 'libSkiaSharp', 'libHarfBuzzSharp']) {
@@ -148,7 +148,7 @@ test('provisioning a portable profile writes a startable, input-capable install'
 });
 
 test('provisioning a documents profile copies the native libraries it needs', () => {
-  withTempDir('rea-fc-provision-', (root) => {
+  withTempDir('reretro-provision-', (root) => {
     const exeDir = join(root, 'bin');
     const documentsDir = join(root, 'Documents');
     mkdirSync(exeDir, { recursive: true });

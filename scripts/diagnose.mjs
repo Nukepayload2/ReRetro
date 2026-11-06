@@ -92,7 +92,7 @@ function checkRepository() {
   return {
     status: healthy ? 'ok' : 'fail',
     detail,
-    remedy: healthy ? null : 'git submodule update --init --recursive，然后 node scripts/rea-fc.mjs pins',
+    remedy: healthy ? null : 'git submodule update --init --recursive，然后 node scripts/reretro.mjs pins',
     data: { rows: rowsOut },
   };
 }
@@ -106,7 +106,7 @@ function checkBinaries(located) {
     return {
       status: 'fail',
       detail: 'MCPServer.exe 未找到',
-      remedy: 'node scripts/setup.mjs（或 --mesen-dir / REA_FC_MESEN_DIR 指向已有安装）',
+      remedy: 'node scripts/setup.mjs（或 --mesen-dir / RERETRO_MESEN_DIR 指向已有安装）',
       data: located,
     };
   }
@@ -134,7 +134,7 @@ function checkEmulator(located) {
     return {
       status: 'warn',
       detail: 'Mesen.exe 未定位到：桥能应答，但没有模拟器可启动',
-      remedy: 'node scripts/setup.mjs（或 --mesen-dir / REA_FC_MESEN_DIR 指向已有安装）',
+      remedy: 'node scripts/setup.mjs（或 --mesen-dir / RERETRO_MESEN_DIR 指向已有安装）',
       data: null,
     };
   }
@@ -163,7 +163,7 @@ function checkEmulator(located) {
     detail: problems.length === 0
       ? `profile ${displayPath(home.path)}（${home.portable ? '便携' : '文档目录'}），原生库齐全，${ports.ports.map(port => `${port.port}=${port.device}`).join('，')}`
       : `${problems.join('；')}`,
-    remedy: problems.length === 0 ? null : 'node scripts/rea-fc.mjs emulator provision，然后重启 Mesen 再重跑',
+    remedy: problems.length === 0 ? null : 'node scripts/reretro.mjs emulator provision，然后重启 Mesen 再重跑',
     data: {
       exeDir: displayPath(exeDir),
       homeFolder: displayPath(home.path),
@@ -314,7 +314,7 @@ function checkInput(input) {
     detail: available.length > 0
       ? `available_controllers ${JSON.stringify(available)}`
       : `available_controllers 为空${input.error ? `（${input.error}）` : ''}：桥会拒绝 set_input`,
-    remedy: available.length > 0 ? null : 'node scripts/rea-fc.mjs emulator provision 配置 Nes.Port1，重启 Mesen 后重跑',
+    remedy: available.length > 0 ? null : 'node scripts/reretro.mjs emulator provision 配置 Nes.Port1，重启 Mesen 后重跑',
     data: input,
   };
 }

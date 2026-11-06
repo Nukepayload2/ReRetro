@@ -1,14 +1,14 @@
-# rea-fc
+# ReRetro
 
-**NES/6502 逆向工具包：一套规则、两个工具仓、零依赖脚本。** 把 NES ROM 逆向需要的静态反汇编、动态调试与取证规则收成一份 clone 即用的交付。
+**ReRetro — NES/6502 逆向工具包：一套规则、两个工具仓、零依赖脚本。** 把 NES ROM 逆向需要的静态反汇编、动态调试与取证规则收成一份 clone 即用的交付。
 
 > A standalone NES/6502 reversing kit. The workflow lives in [docs/workflow.md](docs/workflow.md); the two tool repositories are pinned as submodules; the scripts need only Node.js. No external workspace, no machine-local path mapping.
 
 ## 快速开始
 
 ```powershell
-git clone --recursive <repo-url> rea-fc
-cd rea-fc
+git clone --recursive <repo-url> reretro
+cd reretro
 node scripts/setup.mjs      # 检测构建先决、构建工具、写出 MCP 注册条目
 node scripts/verify.mjs     # 证明调试桥与工具面可用
 ```
@@ -16,11 +16,11 @@ node scripts/verify.mjs     # 证明调试桥与工具面可用
 把 `out/client-setup.md` 里的条目加进 MCP 客户端，再让模拟器本身可启动、可按键（写 profile 配置、补原生库、配置手柄端口）：
 
 ```powershell
-node scripts/rea-fc.mjs emulator provision --rom <rom>
+node scripts/reretro.mjs emulator provision --rom <rom>
 node scripts/verify.mjs --live --rom <rom>
 ```
 
-`verify` 通过只证明桥与工具面可达，不证明模拟器能启动或收得到按键：这两件事由 profile 目录、配置文件、原生库与手柄端口决定，判据见 [docs/emulator-init.md](docs/emulator-init.md)。之后按 [docs/workflow.md](docs/workflow.md) 干活。环境没跑起来时先跑 `node scripts/rea-fc.mjs doctor`：它按「运行时 → submodule → 二进制 → 模拟器初始化 → 工具链 → 工具列表缓存 → 握手 → 实时探测 → 输入端口」逐层给出断点与下一步。
+`verify` 通过只证明桥与工具面可达，不证明模拟器能启动或收得到按键：这两件事由 profile 目录、配置文件、原生库与手柄端口决定，判据见 [docs/emulator-init.md](docs/emulator-init.md)。之后按 [docs/workflow.md](docs/workflow.md) 干活。环境没跑起来时先跑 `node scripts/reretro.mjs doctor`：它按「运行时 → submodule → 二进制 → 模拟器初始化 → 工具链 → 工具列表缓存 → 握手 → 实时探测 → 输入端口」逐层给出断点与下一步。
 
 ## 包含什么
 

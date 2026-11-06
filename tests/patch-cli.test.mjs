@@ -15,7 +15,7 @@ function runCli(args) {
 }
 
 test('patch-rom writes a verified patch, computes hashes and exports IPS', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'rea-fc-patch-'));
+  const dir = mkdtempSync(join(tmpdir(), 'reretro-patch-'));
   try {
     const rom = makeInesImage({ prgBanks: 2 });
     setPrgByte(rom, 0x0010, 0x4c);
@@ -57,7 +57,7 @@ test('patch-rom writes a verified patch, computes hashes and exports IPS', () =>
 });
 
 test('patch-rom refuses a mismatch, an in-place output and an existing output', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'rea-fc-patch-'));
+  const dir = mkdtempSync(join(tmpdir(), 'reretro-patch-'));
   try {
     const rom = makeInesImage({ prgBanks: 1 });
     const romPath = join(dir, 'game.nes');
@@ -85,7 +85,7 @@ test('patch-rom refuses a mismatch, an in-place output and an existing output', 
 });
 
 test('patch-rom derives the bank of an edit instead of reporting no CPU address', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'rea-fc-patch-'));
+  const dir = mkdtempSync(join(tmpdir(), 'reretro-patch-'));
   try {
     // Two banks: bank 1 is the fixed window at $C000. An edit there used to print
     // "n/a (outside the selected bank)" because the default bank was 0.
@@ -121,7 +121,7 @@ test('patch-rom derives the bank of an edit instead of reporting no CPU address'
 });
 
 test('rom info prints the header facts', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'rea-fc-info-'));
+  const dir = mkdtempSync(join(tmpdir(), 'reretro-info-'));
   try {
     const rom = makeInesImage({ prgBanks: 4, chrBanks: 2, flags6: 0x01 });
     const romPath = join(dir, 'game.nes');

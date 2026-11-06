@@ -1,5 +1,5 @@
 /*
- * rea-fc SourceGen CLI: a headless driver for the pinned 6502bench analysis.
+ * reretro SourceGen CLI: a headless driver for the pinned 6502bench analysis.
  *
  * The analysis, the CPU/opcode tables and the project format come from
  * third_party/6502bench by reference; this file only decides what to ask it and

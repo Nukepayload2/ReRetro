@@ -16,9 +16,9 @@
 
 最短路径：
 
-1. `git clone --recursive <repo-url> rea-fc`
+1. `git clone --recursive <repo-url> reretro`
 2. `node scripts/setup.mjs`
-3. 把 `out/client-setup.md` 的条目加进 MCP 客户端；`node scripts/rea-fc.mjs emulator provision --rom <rom>` 让模拟器可启动、可按键
+3. 把 `out/client-setup.md` 的条目加进 MCP 客户端；`node scripts/reretro.mjs emulator provision --rom <rom>` 让模拟器可启动、可按键
 4. `node scripts/verify.mjs --live --rom <rom>`
 
 之后按 [workflow](workflow.md) 干活。工具细节查 submodule：`third_party/MesenGM/MCP_SERVER.md`、`third_party/6502bench/docs/sgmanual/`。

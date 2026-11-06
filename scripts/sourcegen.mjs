@@ -186,7 +186,7 @@ function locateDriver() {
   const candidates = [
     join(paths.out, 'SourceGenCli', 'SourceGenCli.exe'),
     join(paths.root, 'tools', 'SourceGenCli', 'bin', 'Release', 'SourceGenCli.exe'),
-    process.env.REA_FC_DRIVER ?? '',
+    process.env.RERETRO_DRIVER ?? '',
   ].filter(Boolean);
   return candidates.find(candidate => existsSync(candidate)) ?? null;
 }
@@ -197,7 +197,7 @@ function loadSource() {
   if (romPath) {
     const buffer = readFileSync(resolve(romPath));
     const rom = parseRom(buffer);
-    const workDir = startWorkDir('rea-fc-bank-');
+    const workDir = startWorkDir('reretro-bank-');
     const slices = new Map();
     return {
       description: () => ({ path: relativePath(resolve(romPath)), sha256: rom.sha256, mapper: rom.mapper, prgBanks: rom.prgBanks16k, prgOffset: rom.prgOffset }),
@@ -217,7 +217,7 @@ function loadSource() {
   if (dataPath) {
     const base = Number.parseInt(String(args.get('base', '0x8000')), 0);
     const buffer = readFileSync(resolve(dataPath));
-    const workDir = startWorkDir('rea-fc-slice-');
+    const workDir = startWorkDir('reretro-slice-');
     const path = join(workDir, 'slice.bin');
     writeFileSync(path, buffer);
     const single = bankOf(0, 1, base);

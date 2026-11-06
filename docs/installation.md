@@ -19,8 +19,8 @@
 ## 取仓库
 
 ```powershell
-git clone --recursive <repo-url> rea-fc
-cd rea-fc
+git clone --recursive <repo-url> reretro
+cd reretro
 ```
 
 已经 clone 但工具目录为空时补一次：
@@ -73,7 +73,7 @@ node scripts/setup.mjs
 | `--dry-run` | 只打印将要执行的命令 |
 | `--json` | 机器可读输出 |
 
-环境变量 `REA_FC_MESEN_DIR`、`REA_FC_BENCH_DIR` 与对应参数等价，适合写进本机的 shell 配置。
+环境变量 `RERETRO_MESEN_DIR`、`RERETRO_BENCH_DIR` 与对应参数等价，适合写进本机的 shell 配置。
 
 退出码：`0` 桥已就位；`2` 桥缺失；`1` 检查本身失败。构建失败但桥已存在时仍是 `0`，此时看输出里的 `Builds` 段判断降级项。
 
@@ -93,8 +93,8 @@ node scripts/setup.mjs
 最短的一次性补齐：
 
 ```powershell
-node scripts/rea-fc.mjs emulator provision --rom <rom>   # 写配置、补端口、按需复制原生库
-node scripts/rea-fc.mjs emulator inspect --live          # 复核：原生库齐全、available_controllers 非空
+node scripts/reretro.mjs emulator provision --rom <rom>   # 写配置、补端口、按需复制原生库
+node scripts/reretro.mjs emulator inspect --live          # 复核：原生库齐全、available_controllers 非空
 ```
 
 不写配置只做判定时用 `inspect`；它按 `0 / 2 / 1` 区分「全通过 / 有缺项 / 连可执行文件都没有」。
@@ -158,7 +158,7 @@ node scripts/verify.mjs --rom <rom-path> --live   # 追加「载入的是不是�
 
 `--rom` 默认只做比对：它把 `get_rom_info.rom_path` 与给定路径规范化后比较，不改变模拟器状态。加 `--load` 时先调 `load_rom` 载入再比对；本地构建缺该工具时按界面载入处理并在输出里说明。
 
-核验通过后，把本次的 `memory_types`（名称、ID、大小）记进工作台账；换 ROM 或换 Mesen 会话后必须重新核验。断点通道用 `node scripts/rea-fc.mjs verify --live --breakpoint` 验一次：它在 NES 栈页设写断点、推帧，要求 `run_frames` 报 `stopped_by_breakpoint` 并给出 `breakpoint_id` 与停止地址，最后清空断点并恢复执行。手工做同一件事时，验完必须删掉断点，否则后续推帧都冻在第一个命中点。
+核验通过后，把本次的 `memory_types`（名称、ID、大小）记进工作台账；换 ROM 或换 Mesen 会话后必须重新核验。断点通道用 `node scripts/reretro.mjs verify --live --breakpoint` 验一次：它在 NES 栈页设写断点、推帧，要求 `run_frames` 报 `stopped_by_breakpoint` 并给出 `breakpoint_id` 与停止地址，最后清空断点并恢复执行。手工做同一件事时，验完必须删掉断点，否则后续推帧都冻在第一个命中点。
 
 工具面以 pinned 提交为准（23 个）。本地构建若多出工具，`verify.mjs` 会把它们列在可选集里而不判失败；缺核心工具才降级。以本次 `tools/list` 返回为准。
 
@@ -171,7 +171,7 @@ node scripts/verify.mjs --rom <rom-path> --live   # 追加「载入的是不是�
 
 ## 常见故障
 
-先跑 `node scripts/rea-fc.mjs doctor`：它按层列出断点与下一步，比对着症状猜快。下表是最常见的几种。
+先跑 `node scripts/reretro.mjs doctor`：它按层列出断点与下一步，比对着症状猜快。下表是最常见的几种。
 
 | 症状 | 处理 |
 |------|------|
@@ -180,7 +180,7 @@ node scripts/verify.mjs --rom <rom-path> --live   # 追加「载入的是不是�
 | 重建 Mesen 报 `C1354: corrupt ipdb` 或 `LNK1257` | 上次链接被中断留下的增量代码生成库失效：删 `third_party/MesenGM/InteropDLL/obj/x64/Release/MesenCore.ipdb` 与 `.iobj` 后重试；`setup` 的 Mesen 目标会在构建前自动清掉这两个文件 |
 | 干净机器上 Mesen 一启动就退出 | 旧构建的 `Dependencies.zip` 可能不含原生库；重建一次 Mesen 会重新打包，判据是归档里出现 `libSkiaSharp.dll` 与 `libHarfBuzzSharp.dll` |
 | 构建 SourceGen 失败 | 确认装了 .NET Framework 4.8.1 targeting pack；报 `NETSDK1004` 是缺少 restore 资产，`setup.mjs` 已执行 `dotnet restore WorkBench.sln`，手工构建时也要先 restore |
-| 模拟器启动后立刻退出，stderr 是 `DllNotFoundException` | profile 目录缺原生库；`node scripts/rea-fc.mjs emulator provision` 复制，判据见 [emulator-init](emulator-init.md) |
+| 模拟器启动后立刻退出，stderr 是 `DllNotFoundException` | profile 目录缺原生库；`node scripts/reretro.mjs emulator provision` 复制，判据见 [emulator-init](emulator-init.md) |
 | 每次启动弹首次运行向导 | profile 目录没有 `settings.json`；`emulator provision` 写一份最小配置 |
 | `set_input` 报「Controller 0 is not available」 | 手柄端口是 `None`；`emulator provision` 写入 `NesController` 后重启模拟器 |
 | `run_frames` 返回 `timed_out` 且 `frames_elapsed` 为 `0` | 服务端预算内没恢复运行；原样重试同一次推帧，不要先释放按键 |

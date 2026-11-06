@@ -21,7 +21,7 @@ const PROGRAM = [
 ];
 
 function withSlice(run) {
-  const dir = mkdtempSync(join(tmpdir(), 'rea-fc-sgt-'));
+  const dir = mkdtempSync(join(tmpdir(), 'reretro-sgt-'));
   const path = join(dir, 'slice.bin');
   writeFileSync(path, Buffer.from(PROGRAM));
   try {
@@ -109,7 +109,7 @@ test('a listing decodes unreached bytes instead of stopping at them', { skip: ex
     0x60,             // RTS
   ];
 
-  const dir = mkdtempSync(join(tmpdir(), 'rea-fc-sgl-'));
+  const dir = mkdtempSync(join(tmpdir(), 'reretro-sgl-'));
   const path = join(dir, 'slice.bin');
   writeFileSync(path, Buffer.from(slice));
 
@@ -144,7 +144,7 @@ test('the wrapper analyses a raw slice and answers xref in JSON', { skip: exists
 });
 
 test('--prg-bank narrows a whole-bank command to that bank', { skip: existsSync(DRIVER) ? false : 'SourceGen driver not built' }, () => {
-  const dir = mkdtempSync(join(tmpdir(), 'rea-fc-sgb-'));
+  const dir = mkdtempSync(join(tmpdir(), 'reretro-sgb-'));
   const path = join(dir, 'two-banks.nes');
   // Two PRG banks: the last one is the fixed window at $C000, the first the switchable
   // window at $8000, so the two banks must not report the same base.
@@ -184,7 +184,7 @@ test('an unreached store is still reported, at the raw tier', { skip: existsSync
     0x60,
   ];
 
-  const dir = mkdtempSync(join(tmpdir(), 'rea-fc-sge-'));
+  const dir = mkdtempSync(join(tmpdir(), 'reretro-sge-'));
   const path = join(dir, 'slice.bin');
   writeFileSync(path, Buffer.from(split));
 
@@ -226,7 +226,7 @@ test('every store and read-modify-write mode is reported, indexed ones included'
     0x60,
   ];
 
-  const dir = mkdtempSync(join(tmpdir(), 'rea-fc-sgf-'));
+  const dir = mkdtempSync(join(tmpdir(), 'reretro-sgf-'));
   const path = join(dir, 'slice.bin');
   writeFileSync(path, Buffer.from(slice));
 
@@ -251,7 +251,7 @@ test('a store pattern inside a classified instruction is not reported', { skip: 
   // reporting it would be a false positive rather than an unreached store.
   const slice = [0x4c, 0x8d, 0x24, 0x03];
 
-  const dir = mkdtempSync(join(tmpdir(), 'rea-fc-sgg-'));
+  const dir = mkdtempSync(join(tmpdir(), 'reretro-sgg-'));
   const path = join(dir, 'slice.bin');
   writeFileSync(path, Buffer.from(slice));
 

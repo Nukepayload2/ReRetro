@@ -181,7 +181,7 @@ function gateEmulator() {
 
   pushGate('emulator-setup', problems.length === 0 ? 'pass' : 'warn', problems.length === 0
     ? `profile ${displayPath(home.path)} (${home.portable ? 'portable' : 'documents'}), native libraries complete, ${ports.ports.map(port => `${port.port}=${port.device}`).join(', ')}`
-    : `${problems.join('; ')} — run node scripts/rea-fc.mjs emulator provision`);
+    : `${problems.join('; ')} — run node scripts/reretro.mjs emulator provision`);
 
   return {
     ok: problems.length === 0,
@@ -291,7 +291,7 @@ function probeLive() {
   const controllers = parseJson(inputResult?.result)?.available_controllers ?? [];
   pushGate('input-probe', controllers.length > 0 ? 'pass' : 'warn', controllers.length > 0
     ? `available_controllers ${JSON.stringify(controllers)}`
-    : 'no controller port is configured; set_input will be rejected — run node scripts/rea-fc.mjs emulator provision');
+    : 'no controller port is configured; set_input will be rejected — run node scripts/reretro.mjs emulator provision');
 
   const breakpoints = (loaded && (probeBreakpoints || null))
     ? probeBreakpointTools(bridge, romInfo, timeoutMs)
@@ -491,7 +491,7 @@ function finish() {
     status('fail', 'not ready', 'fix the failing gates before claiming ROM behavior');
   }
   if (!report.tools.bench.exe) {
-    status('warn', 'static side unavailable', 'build SourceGen (node scripts/setup.mjs) or point REA_FC_BENCH_DIR at an install');
+    status('warn', 'static side unavailable', 'build SourceGen (node scripts/setup.mjs) or point RERETRO_BENCH_DIR at an install');
   }
   if (report.exitCode !== 0) {
     status('info', 'next', 'docs/installation.md');

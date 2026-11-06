@@ -1,6 +1,6 @@
 # 命令行
 
-所有命令都是零依赖的 Node 脚本，可以经 `scripts/rea-fc.mjs` 子命令调用，也可以直接 `node scripts/<name>.mjs`。工作流规则见 [workflow](workflow.md)，安装见 [installation](installation.md)。
+所有命令都是零依赖的 Node 脚本，可以经 `scripts/reretro.mjs` 子命令调用，也可以直接 `node scripts/<name>.mjs`。工作流规则见 [workflow](workflow.md)，安装见 [installation](installation.md)。
 
 统一约定：
 
@@ -12,7 +12,7 @@
 ## `setup`
 
 ```powershell
-node scripts/rea-fc.mjs setup [--mesen-dir <dir>] [--bench-dir <dir>] [--skip-build] [--rebuild] [--dry-run] [--json]
+node scripts/reretro.mjs setup [--mesen-dir <dir>] [--bench-dir <dir>] [--skip-build] [--rebuild] [--dry-run] [--json]
 ```
 
 检测构建先决、核对 submodule pin、构建缺失的工具（`dotnet restore` + MSBuild），并把客户端注册条目写进 `out/`。
@@ -31,7 +31,7 @@ node scripts/rea-fc.mjs setup [--mesen-dir <dir>] [--bench-dir <dir>] [--skip-bu
 ## `doctor`
 
 ```powershell
-node scripts/rea-fc.mjs doctor [--live] [--rom <rom-path>] [--timeout <ms>] [--json]
+node scripts/reretro.mjs doctor [--live] [--rom <rom-path>] [--timeout <ms>] [--json]
 ```
 
 逐层诊断，用来回答「哪里断了、下一步做什么」。`verify` 只给通过/降级；`doctor` 会把每一层单独摊开：
@@ -56,7 +56,7 @@ node scripts/rea-fc.mjs doctor [--live] [--rom <rom-path>] [--timeout <ms>] [--j
 ## `verify`
 
 ```powershell
-node scripts/rea-fc.mjs verify [--live] [--breakpoint] [--rom <rom-path>] [--load] [--timeout <ms>] [--json]
+node scripts/reretro.mjs verify [--live] [--breakpoint] [--rom <rom-path>] [--load] [--timeout <ms>] [--json]
 ```
 
 按顺序校验：submodule 检出与 pin → submodule 工作树是否干净 → 桥可执行文件 → `initialize`/`tools/list` 握手 →（可选）Mesen 实时探测。
@@ -72,8 +72,8 @@ node scripts/rea-fc.mjs verify [--live] [--breakpoint] [--rom <rom-path>] [--loa
 ## `emulator`
 
 ```powershell
-node scripts/rea-fc.mjs emulator inspect [--mesen-dir <dir>] [--rom <rom>] [--live] [--json]
-node scripts/rea-fc.mjs emulator provision [--mesen-dir <dir>] [--rom <rom>] [--no-portable] `
+node scripts/reretro.mjs emulator inspect [--mesen-dir <dir>] [--rom <rom>] [--live] [--json]
+node scripts/reretro.mjs emulator provision [--mesen-dir <dir>] [--rom <rom>] [--no-portable] `
   [--device NesController] [--json]
 ```
 
@@ -91,7 +91,7 @@ node scripts/rea-fc.mjs emulator provision [--mesen-dir <dir>] [--rom <rom>] [--
 
 ## `info`
 ```powershell
-node scripts/rea-fc.mjs info <rom> [--json]
+node scripts/reretro.mjs info <rom> [--json]
 ```
 
 打印 iNES 头事实：格式、mapper、PRG/CHR 大小、镜像方式、battery、trainer、PRG/CHR 偏移、尾随字节、SHA256。固定基线的第一步就用它。
@@ -99,7 +99,7 @@ node scripts/rea-fc.mjs info <rom> [--json]
 ## `patch`
 
 ```powershell
-node scripts/rea-fc.mjs patch --rom <rom> --out <patched> `
+node scripts/reretro.mjs patch --rom <rom> --out <patched> `
   --edit <offset>:<old>:<new>[:note] [--edit ...] `
   [--ips <ips-file>] [--bank <n>] [--bank-cpu-start 0x8000] [--bank-size 0x4000] `
   [--force] [--dry-run] [--json]
@@ -117,9 +117,9 @@ node scripts/rea-fc.mjs patch --rom <rom> --out <patched> `
 ## `cheat`
 
 ```powershell
-node scripts/rea-fc.mjs cheat decode <CODE> [--json]
-node scripts/rea-fc.mjs cheat encode --address 0xNNNN --value 0xNN [--compare 0xNN] [--rom <rom>] [--json]
-node scripts/rea-fc.mjs cheat check --rom <rom> (--offset 0xNN | --address 0xNNNN) `
+node scripts/reretro.mjs cheat decode <CODE> [--json]
+node scripts/reretro.mjs cheat encode --address 0xNNNN --value 0xNN [--compare 0xNN] [--rom <rom>] [--json]
+node scripts/reretro.mjs cheat check --rom <rom> (--offset 0xNN | --address 0xNNNN) `
   [--bank N] [--bank-size 0x4000] [--bank-cpu-start 0x8000] [--json]
 ```
 
@@ -132,10 +132,10 @@ node scripts/rea-fc.mjs cheat check --rom <rom> (--offset 0xNN | --address 0xNNN
 ## `sourcegen`
 
 ```powershell
-node scripts/rea-fc.mjs sourcegen stats --rom <rom> [--prg-bank <n>] [--json]
-node scripts/rea-fc.mjs sourcegen build --rom <rom> [--prg-bank <n>] [--save-project <dis65>] [--json]
-node scripts/rea-fc.mjs sourcegen line  --rom <rom> --prg-bank <n> --address 0x8000 [--count 32] [--json]
-node scripts/rea-fc.mjs sourcegen xref  --rom <rom> --address 0x0324 [--all-banks] [--writes-only] [--code-only] [--json]
+node scripts/reretro.mjs sourcegen stats --rom <rom> [--prg-bank <n>] [--json]
+node scripts/reretro.mjs sourcegen build --rom <rom> [--prg-bank <n>] [--save-project <dis65>] [--json]
+node scripts/reretro.mjs sourcegen line  --rom <rom> --prg-bank <n> --address 0x8000 [--count 32] [--json]
+node scripts/reretro.mjs sourcegen xref  --rom <rom> --address 0x0324 [--all-banks] [--writes-only] [--code-only] [--json]
 ```
 
 `stats`/`build` 不给 `--prg-bank` 时逐 bank 全跑，给了就只报那一个 bank——要单看固定 bank 的覆盖率必须显式给 `--prg-bank`。
@@ -164,7 +164,7 @@ node scripts/rea-fc.mjs sourcegen xref  --rom <rom> --address 0x0324 [--all-bank
 ## `pins`
 
 ```powershell
-node scripts/rea-fc.mjs pins [--write] [--json]
+node scripts/reretro.mjs pins [--write] [--json]
 ```
 
 对比 `third_party/pins.json` 与两个 submodule 实际检出的提交。默认只报告并在一不一致时退出 `1`；`--write` 把实际提交写回 `pins.json`。升级 submodule 后用它记录 pin，再跑 `verify`。
@@ -172,7 +172,7 @@ node scripts/rea-fc.mjs pins [--write] [--json]
 ## `check`
 
 ```powershell
-node scripts/rea-fc.mjs check [--json]
+node scripts/reretro.mjs check [--json]
 ```
 
 仓库自检：扫描外部 key 占位符、外部工作区依赖、本机用户路径、`/home/` 路径、断链，以及 `.gitmodules`、`pins.json`、gitlink 三者的一致性。CI 与 `npm test` 都会跑它。
@@ -180,7 +180,7 @@ node scripts/rea-fc.mjs check [--json]
 ## `test`
 
 ```powershell
-node scripts/rea-fc.mjs test
+node scripts/reretro.mjs test
 ```
 
 等价于 `node --test tests/`。单元测试覆盖 iNES 解析、偏移换算、Game Genie 编解码往返、补丁确定性与 IPS 往返；桥握手测试在 `MCPServer.exe` 不存在、或本机还没有 Mesen 写出的工具缓存时跳过。

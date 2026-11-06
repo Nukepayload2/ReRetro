@@ -106,8 +106,15 @@ test('IPS patches round-trip through applyIps', () => {
 
   const ips = makeIps(original, patched);
   assert.equal(ips.records.length, 2);
+  assert.equal(ips.buffer.toString('latin1', 0, 5), 'PATCH');
+  assert.equal(ips.buffer.length, 5 + (5 + 2) + (5 + 1) + 3);
 
   const restored = applyIps(original, ips.buffer);
   assert.ok(restored.buffer.equals(patched));
   assert.equal(restored.trailingBytes, 0);
+
+  // A patch written before the magic existed must still apply.
+  const legacy = applyIps(original, ips.buffer.subarray(5));
+  assert.ok(legacy.buffer.equals(patched));
+  assert.equal(legacy.records, 2);
 });

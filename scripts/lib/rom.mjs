@@ -246,9 +246,9 @@ export function bytesMatch(buf, offset, expected) {
 /**
  * Build an IPS patch from the differing regions of two ROM images.
  *
- * Plain records only; contiguous runs longer than 0x8000 bytes are split so a
- * record never needs the RLE form. Offset 0x454F46 ("EOF") is skipped because
- * classic IPS readers treat it as the end marker.
+ * Emits the 5-byte "PATCH" magic followed by plain records; contiguous runs longer
+ * than 0x8000 bytes are split so a record never needs the RLE form. Offset 0x454F46
+ * ("EOF") is skipped because classic IPS readers treat it as the end marker.
  */
 export function makeIps(original, patched) {
   if (original.length !== patched.length) {
@@ -284,9 +284,10 @@ export function makeIps(original, patched) {
     }
   }
 
-  const total = records.reduce((size, record) => size + 5 + record.data.length, 0) + 3;
+  const total = records.reduce((size, record) => size + 5 + record.data.length, 0) + 3 + 5;
   const out = Buffer.alloc(total);
-  let position = 0;
+  out.write('PATCH', 0, 'ascii');
+  let position = 5;
   for (const record of records) {
     out[position] = (record.start >> 16) & 0xff;
     out[position + 1] = (record.start >> 8) & 0xff;
@@ -303,7 +304,9 @@ export function makeIps(original, patched) {
 /** Apply an IPS patch to a buffer and return a new buffer. */
 export function applyIps(original, ips) {
   const out = Buffer.from(original);
-  let position = 0;
+  // Writers emit the 5-byte "PATCH" magic. Files without it are read from offset 0 so
+  // that artifacts produced before the header existed still apply.
+  let position = ips.length >= 5 && ips.toString('latin1', 0, 5) === 'PATCH' ? 5 : 0;
   let records = 0;
 
   while (position + 3 <= ips.length) {

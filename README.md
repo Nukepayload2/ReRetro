@@ -1,8 +1,6 @@
 # ReRetro
 
-**ReRetro — NES/6502 逆向工具包：一套规则、两个工具仓、零依赖脚本。** 把 NES ROM 逆向需要的静态反汇编、动态调试与取证规则收成一份 clone 即用的交付。
-
-> A standalone NES/6502 reversing kit. The workflow lives in [docs/workflow.md](docs/workflow.md); the two tool repositories are pinned as submodules; the scripts need only Node.js. No external workspace, no machine-local path mapping.
+复古游戏机逆向 AI 技能包（目前支持 NES/6502）
 
 ## 快速开始
 

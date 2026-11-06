@@ -4,7 +4,7 @@
 
 ## MesenGM — `third_party/MesenGM`
 
-- 上游：<https://github.com/Hoshiruna/MesenGM>
+- 上游：<https://github.com/Nukepayload2/MesenGM>
 - 许可：GNU General Public License v3.0（`git submodule update --init` 后见 `third_party/MesenGM/LICENSE`）
 - 角色：NES 模拟器与 MCP 调试桥（`MCPServer.exe`），动态取证侧。
 

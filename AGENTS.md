@@ -21,7 +21,7 @@
 ## 命令
 
 ```powershell
-node --test tests/            # 全部测试
+node scripts/reretro.mjs test   # 全部测试
 node scripts/check-docs.mjs   # 自检：占位符、外部依赖、本机路径、断链、pin 一致性
 node scripts/setup.mjs        # 构建/定位工具并写客户端配置
 node scripts/reretro.mjs doctor # 逐层诊断，输出断点与下一步
@@ -36,7 +36,7 @@ node scripts/reretro.mjs pins  # 对比或记录 submodule pin（升级后加 --
 ## 交付与提交
 
 - 提交信息用 Conventional Commit 风格（`feat:`、`fix:`、`docs:`、`test:`、`chore:`）。
-- 提交前至少跑 `node --test tests/` 与 `node scripts/check-docs.mjs`。
+- 提交前至少跑 `node scripts/reretro.mjs test` 与 `node scripts/check-docs.mjs`。
 - 断言标注三态：有运行结果支撑的写「实锤」，只读过源码或文档的写「推测」，没验证的写「猜测」。不要把推测写成事实；证据动词（已检查、已运行）可以说清楚依据，但结论仍要落到三态。
 - 不提交 ROM、存档、`out/`、`tmp/`、构建产物或任何凭据。
 

@@ -183,4 +183,4 @@ node scripts/reretro.mjs check [--json]
 node scripts/reretro.mjs test
 ```
 
-等价于 `node --test tests/`。单元测试覆盖 iNES 解析、偏移换算、Game Genie 编解码往返、补丁确定性与 IPS 往返；桥握手测试在 `MCPServer.exe` 不存在、或本机还没有 Mesen 写出的工具缓存时跳过。
+等价于对 `tests/*.test.mjs` 逐个运行 `node --test`（目录参数在 Node 22 上会被当成单个模块加载，所以不传目录）。单元测试覆盖 iNES 解析、偏移换算、Game Genie 编解码往返、补丁确定性与 IPS 往返；桥握手测试在 `MCPServer.exe` 不存在、或本机还没有 Mesen 写出的工具缓存时跳过。

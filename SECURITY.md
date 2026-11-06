@@ -12,7 +12,7 @@ Do not open a public issue for a vulnerability that exposes a local system, a cr
 - the minimal reproduction (command, inputs, observed vs expected),
 - the impact you can demonstrate, and what you did not test.
 
-Reports about the upstream tools belong upstream: MesenGM at <https://github.com/Hoshiruna/MesenGM>, 6502bench at <https://github.com/fadden/6502bench>.
+Reports about the upstream tools belong upstream: MesenGM at <https://github.com/Nukepayload2/MesenGM>, 6502bench at <https://github.com/fadden/6502bench>.
 
 ## Practices
 

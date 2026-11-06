@@ -3,7 +3,7 @@
 本仓库的规则是「可复核」：改动要能被另一个执行者用命令重放。提交前自检：
 
 ```powershell
-node --test tests/
+node scripts/reretro.mjs test
 node scripts/check-docs.mjs
 ```
 

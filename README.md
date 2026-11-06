@@ -29,7 +29,7 @@ node scripts/verify.mjs --live --rom <rom>
 | 工具 | `third_party/MesenGM`（模拟器 + MCP 调试桥，23 个工具，含载入 ROM / 存档读档 / 输入 / 推帧）、`third_party/6502bench`（SourceGen 反汇编与分析库；`tools/SourceGenCli` 是它的无人值守驱动器），pin 见 [docs/third-party.md](docs/third-party.md) |
 | 命令 | `setup`、`doctor`、`verify`、`emulator`、`info`、`patch`、`cheat`、`sourcegen`、`pins`、`check`、`test`，见 [docs/cli.md](docs/cli.md) |
 | 智能体 | [.agents/skills/nes-rom-reversing/SKILL.md](.agents/skills/nes-rom-reversing/SKILL.md) |
-| 测试 | `node --test tests/`：iNES 解析、偏移换算、Game Genie 编解码往返、补丁确定性、IPS 往返、模拟器初始化判定、反汇编驱动器（引用与指令边界）、桥握手 |
+| 测试 | `node scripts/reretro.mjs test`：iNES 解析、偏移换算、Game Genie 编解码往返、补丁确定性、IPS 往返、模拟器初始化判定、反汇编驱动器（引用与指令边界）、桥握手 |
 
 ## 要求
 - Windows 10/11 x64（Mesen 的 MCP 桥只随 Windows 构建提供；SourceGen 是 WPF 程序）。
@@ -60,7 +60,7 @@ node scripts/verify.mjs --live --rom <rom>
 ## 开发
 
 ```powershell
-node --test tests/          # 单元 + 端到端测试
+node scripts/reretro.mjs test  # 单元 + 端到端测试
 node scripts/check-docs.mjs # 仓库自检：无外部工作区依赖、无本机路径、链接与 pin 一致
 ```
 

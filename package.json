@@ -7,7 +7,7 @@
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Hoshiruna/rea-fc.git"
+    "url": "git+https://github.com/Nukepayload2/ReRetro.git"
   },
   "keywords": [
     "nes",
@@ -40,6 +40,6 @@
     "doctor": "node scripts/diagnose.mjs",
     "verify": "node scripts/verify.mjs",
     "check": "node scripts/check-docs.mjs",
-    "test": "node --test tests/"
+    "test": "node scripts/reretro.mjs test"
   }
 }

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
+import { readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -22,7 +23,7 @@ const COMMANDS = {
   sourcegen: { script: 'sourcegen.mjs', summary: 'build, list or cross-reference a PRG bank without the SourceGen GUI' },
   pins: { script: 'update-pins.mjs', summary: 'compare or record the submodule commits in third_party/pins.json' },
   check: { script: 'check-docs.mjs', summary: 'verify the repository has no machine-local paths or external workspace dependency' },
-  test: { script: null, summary: 'run the test suite (node --test)' },
+  test: { script: null, summary: 'run the test suite (node --test on every tests/*.test.mjs)' },
 };
 
 main();
@@ -36,7 +37,10 @@ function main() {
   }
 
   if (command === 'test') {
-    const result = spawnSync(process.execPath, ['--test', ...(rest.length ? rest : ['tests/'])], {
+    // `node --test tests/` passes the directory to the test runner as one entry
+    // point, and Node 22 then loads it as a module: "Cannot find module .../tests".
+    // Enumerating the files keeps every supported Node version running the same list.
+    const result = spawnSync(process.execPath, ['--test', ...(rest.length ? rest : testFiles())], {
       cwd: join(here, '..'),
       stdio: 'inherit',
     });
@@ -60,6 +64,14 @@ function main() {
     stdio: 'inherit',
   });
   process.exit(result.status ?? 1);
+}
+
+function testFiles() {
+  const dir = join(here, '..', 'tests');
+  return readdirSync(dir)
+    .filter(name => name.endsWith('.test.mjs'))
+    .sort()
+    .map(name => join(dir, name));
 }
 
 function usage() {
